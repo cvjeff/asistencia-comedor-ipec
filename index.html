@@ -2,37 +2,83 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Control de Asistencia QR</title>
+  <title>Control de Asistencia QR - Pestañas</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script type="module" src="app.js"></script>
   <style>
     body { font-family: sans-serif; margin: 20px; }
-    h2, h3 { margin-top: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
-    .form-container, .scanner, .reportes { margin-bottom: 30px; }
-    .hidden { display: none; }
-    input[type="text"], input[type="file"] { padding: 5px; margin: 5px 0; width: 100%; max-width: 300px; }
-    button { padding: 5px 10px; margin-top: 5px; }
+    h2 { margin-bottom: 10px; }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      background: #eee;
+      border-radius: 5px 5px 0 0;
+      user-select: none;
+    }
+    .tab.active {
+      background: #3498db;
+      color: white;
+      font-weight: bold;
+    }
+    .tab-content {
+      border: 1px solid #ccc;
+      border-top: none;
+      padding: 15px;
+      border-radius: 0 5px 5px 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 5px;
+      text-align: center;
+    }
+    button {
+      padding: 5px 10px;
+      margin-top: 5px;
+    }
+    input[type="text"], input[type="file"], input[type="date"] {
+      padding: 5px;
+      margin: 5px 0;
+      width: 100%;
+      max-width: 300px;
+    }
+    .hidden {
+      display: none;
+    }
+    #msg {
+      margin-top: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
+
   <h2>📘 Control de Asistencia QR</h2>
 
-  <div class="form-container">
+  <div class="tabs">
+    <div class="tab active" data-tab="cargar">Cargar Estudiantes</div>
+    <div class="tab" data-tab="registrados">Estudiantes Registrados</div>
+    <div class="tab" data-tab="reportes">Reportes de Asistencia</div>
+  </div>
+
+  <div id="cargar" class="tab-content">
     <h3>📥 Cargar Estudiantes</h3>
     <input type="file" id="csvInput" accept=".csv" />
     <button id="btnCargarCSV">Cargar Estudiantes</button>
     <button id="btnBorrarEstudiantes" style="margin-left:10px; background:#e74c3c; color:white;">Borrar Todos</button>
-  </div>
-
-  <div class="scanner">
-    <h3>📷 Escanear QR</h3>
-    <div id="reader" style="width:100%; max-width:400px;"></div>
     <div id="msg"></div>
   </div>
 
-  <div class="listado">
+  <div id="registrados" class="tab-content hidden">
     <h3>👥 Estudiantes Registrados</h3>
     <input type="text" id="filtroCedula" placeholder="Buscar por cédula" />
     <button id="btnFiltrar">Buscar</button>
@@ -40,27 +86,55 @@
       <thead><tr><th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Editar</th></tr></thead>
       <tbody id="tblEstudiantes"></tbody>
     </table>
+    <div class="hidden" id="editForm">
+      <h3>✏️ Editar Estudiante</h3>
+      <input type="text" id="editCedula" disabled /><br />
+      <input type="text" id="editNombre" placeholder="Nombre completo" /><br />
+      <input type="text" id="editArea" placeholder="Área académica" /><br />
+      <input type="text" id="editNivel" placeholder="Nivel" /><br />
+      <button onclick="guardarEdicion()">Guardar</button>
+      <button onclick="cancelarEdicion()">Cancelar</button>
+    </div>
   </div>
 
-  <div class="reportes">
+  <div id="reportes" class="tab-content hidden">
     <h3>📊 Reportes de Asistencia</h3>
-    <input type="text" id="reporteCedula" placeholder="Buscar reporte por cédula" />
-    <button id="btnBuscarReporte">Ver Reporte</button>
+    <div>
+      <input type="text" id="reporteCedula" placeholder="Buscar reporte por cédula" />
+      <button id="btnBuscarReporte">Ver Reporte</button>
+    </div>
     <table>
       <thead><tr><th>Cédula</th><th>Nombre</th><th>Días Asistidos</th><th>Fechas</th></tr></thead>
       <tbody id="tblReportes"></tbody>
     </table>
-  </div>
 
-  <div class="hidden" id="editForm">
-    <h3>✏️ Editar Estudiante</h3>
-    <input type="text" id="editCedula" disabled /> <br />
-    <input type="text" id="editNombre" placeholder="Nombre completo" /><br />
-    <input type="text" id="editArea" placeholder="Área académica" /><br />
-    <input type="text" id="editNivel" placeholder="Nivel" /><br />
-    <button onclick="guardarEdicion()">Guardar</button>
-    <button onclick="cancelarEdicion()">Cancelar</button>
+    <hr style="margin: 30px 0" />
+
+    <h3>📅 Asistencia por Día</h3>
+    <input type="date" id="fechaReporte" />
+    <button id="btnBuscarPorDia">Buscar por Día</button>
+    <table>
+      <thead><tr><th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Hora</th></tr></thead>
+      <tbody id="tblAsistenciaPorDia"></tbody>
+    </table>
   </div>
 
 </body>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const contents = document.querySelectorAll('.tab-content');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      contents.forEach(c => c.classList.add('hidden'));
+      document.getElementById(tab.dataset.tab).classList.remove('hidden');
+    });
+  });
+</script>
+
 </html>
+
