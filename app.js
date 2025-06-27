@@ -6,13 +6,13 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 const sb = createClient(supabaseUrl, supabaseKey);
 
-let csvFile = null;
 let estudiantesCache = [];
+let reportesFiltrados = [];
 
-function showMsg(text, error = false) {
-  const msg = document.getElementById('msg');
-  msg.textContent = text;
-  msg.style.color = error ? 'red' : 'green';
+function showMsg(text, error = false, lugar = 'msg') {
+  const el = document.getElementById(lugar);
+  el.textContent = text;
+  el.style.color = error ? 'red' : 'green';
 }
 
 async function cargarEstudiantesDesdeCSV(file) {
@@ -24,7 +24,6 @@ async function cargarEstudiantesDesdeCSV(file) {
     header: true,
     skipEmptyLines: true,
     complete: async ({ data }) => {
-      // Validar estructura mínima
       const valid = data.every(row =>
         row.cedula && row.nombre_completo && row.area_academica && row.nivel
       );
@@ -32,12 +31,11 @@ async function cargarEstudiantesDesdeCSV(file) {
         showMsg('CSV inválido, revise las columnas.', true);
         return;
       }
-      // Insertar con upsert para evitar errores por duplicados
       const { error } = await sb.from('estudiantes').upsert(data);
       if (error) showMsg('Error al cargar estudiantes: ' + error.message, true);
       else {
         showMsg('Estudiantes cargados correctamente');
-        await cargarListaEstudiantes();
+        cargarListaEstudiantes();
       }
     }
   });
@@ -57,25 +55,36 @@ async function cargarListaEstudiantes(filtro = '') {
   for (const est of estudiantesCache) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td><input type="checkbox" class="chkEstudiante" data-cedula="${est.cedula}" /></td>
       <td>${est.cedula}</td>
       <td>${est.nombre_completo}</td>
       <td>${est.area_academica}</td>
       <td>${est.nivel}</td>
-      <td><button onclick="editarEstudiante('${est.cedula}')">Editar</button></td>
+      <td><button class="btnEditar" data-cedula="${est.cedula}">Editar</button></td>
     `;
     tbody.appendChild(tr);
   }
+  // checkbox "seleccionar todos"
+  const chkTodos = document.getElementById('chkTodos');
+  chkTodos.checked = false;
+  chkTodos.addEventListener('change', () => {
+    document.querySelectorAll('.chkEstudiante').forEach(chk => chk.checked = chkTodos.checked);
+  });
+  // botones editar
+  document.querySelectorAll('.btnEditar').forEach(btn =>
+    btn.addEventListener('click', e => {
+      const ced = e.target.dataset.cedula;
+      editarEstudiante(ced);
+    })
+  );
 }
 
 async function registrarAsistencia(cedula) {
-  // Verificar estudiante existe
   const est = estudiantesCache.find(e => e.cedula === cedula);
   if (!est) {
-    showMsg(`Cédula no registrada: ${cedula}`, true);
+    showMsg(`Cédula no registrada: ${cedula}`, true, 'msgAsistencia');
     return;
   }
-
-  // Verificar si ya tiene registro hoy
   const hoy = new Date().toISOString().slice(0, 10);
   const { data: asistenciaHoy, error } = await sb
     .from('asistencias')
@@ -83,14 +92,13 @@ async function registrarAsistencia(cedula) {
     .eq('cedula', cedula)
     .eq('fecha', hoy);
   if (error) {
-    showMsg('Error al consultar asistencia', true);
+    showMsg('Error al consultar asistencia', true, 'msgAsistencia');
     return;
   }
   if (asistenciaHoy.length > 0) {
-    showMsg(`Ya se registró asistencia hoy para ${est.nombre_completo}`, true);
+    showMsg(`Ya se registró asistencia hoy para ${est.nombre_completo}`, true, 'msgAsistencia');
     return;
   }
-
   const hora = new Date().toTimeString().split(' ')[0];
   const { error: insertErr } = await sb.from('asistencias').insert({
     cedula,
@@ -100,53 +108,66 @@ async function registrarAsistencia(cedula) {
     nivel: est.nivel,
   });
   if (insertErr) {
-    showMsg('Error al registrar asistencia: ' + insertErr.message, true);
+    showMsg('Error al registrar asistencia: ' + insertErr.message, true, 'msgAsistencia');
   } else {
-    showMsg(`Asistencia registrada para ${est.nombre_completo}`);
-    cargarReportePorEstudiante(document.getElementById('reporteCedula').value.trim());
+    showMsg(`Asistencia registrada para ${est.nombre_completo}`, false, 'msgAsistencia');
   }
+  cargarReportes();
 }
 
-async function cargarReportePorEstudiante(cedula) {
-  if (!cedula) {
-    document.getElementById('tblReportes').innerHTML = '';
-    return;
-  }
-  // Cargar estudiante para nombre
-  const est = estudiantesCache.find(e => e.cedula === cedula);
-  if (!est) {
-    showMsg('Estudiante no encontrado para reporte', true);
-    document.getElementById('tblReportes').innerHTML = '';
-    return;
-  }
-
-  // Cargar asistencias
-  const { data, error } = await sb
-    .from('asistencias')
-    .select('fecha')
-    .eq('cedula', cedula)
-    .order('fecha', { ascending: true });
+async function cargarReportes() {
+  const { data, error } = await sb.from('estudiantes').select('*').order('nombre_completo');
   if (error) {
-    showMsg('Error al cargar reporte: ' + error.message, true);
+    showMsg('Error cargando reportes: ' + error.message, true);
     return;
   }
-
-  // Contar días y mostrar fechas
-  const dias = data ? data.length : 0;
-  const fechas = data ? data.map(a => a.fecha).join(', ') : '';
-
-  const tbody = document.getElementById('tblReportes');
-  tbody.innerHTML = `
-    <tr>
-      <td>${est.cedula}</td>
-      <td>${est.nombre_completo}</td>
-      <td>${dias}</td>
-      <td>${fechas}</td>
-    </tr>
-  `;
+  estudiantesCache = data || [];
+  // Cargar asistencias agrupadas por cedula
+  const { data: asistencias, error: errAsis } = await sb
+    .from('asistencias')
+    .select('cedula,fecha')
+    .order('fecha', { ascending: true });
+  if (errAsis) {
+    showMsg('Error cargando asistencias: ' + errAsis.message, true);
+    return;
+  }
+  // Contar días por estudiante
+  const countByCedula = {};
+  const fechasByCedula = {};
+  for (const a of asistencias) {
+    if (!countByCedula[a.cedula]) {
+      countByCedula[a.cedula] = 0;
+      fechasByCedula[a.cedula] = [];
+    }
+    countByCedula[a.cedula]++;
+    fechasByCedula[a.cedula].push(a.fecha);
+  }
+  // Guardar reportes filtrados por defecto todos
+  reportesFiltrados = estudiantesCache.map(est => ({
+    cedula: est.cedula,
+    nombre_completo: est.nombre_completo,
+    dias: countByCedula[est.cedula] || 0,
+    fechas: fechasByCedula[est.cedula] ? fechasByCedula[est.cedula].join(', ') : '',
+  }));
+  mostrarReportes(reportesFiltrados);
 }
 
-window.editarEstudiante = function(cedula) {
+function mostrarReportes(reportes) {
+  const tbody = document.getElementById('tblReportes');
+  tbody.innerHTML = '';
+  for (const r of reportes) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.cedula}</td>
+      <td>${r.nombre_completo}</td>
+      <td>${r.dias}</td>
+      <td>${r.fechas}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function editarEstudiante(cedula) {
   const est = estudiantesCache.find(e => e.cedula === cedula);
   if (!est) return alert('Estudiante no encontrado');
   document.getElementById('editCedula').value = est.cedula;
@@ -154,9 +175,9 @@ window.editarEstudiante = function(cedula) {
   document.getElementById('editArea').value = est.area_academica;
   document.getElementById('editNivel').value = est.nivel;
   document.getElementById('editForm').classList.remove('hidden');
-};
+}
 
-window.guardarEdicion = async function() {
+async function guardarEdicion() {
   const cedula = document.getElementById('editCedula').value;
   const nombre = document.getElementById('editNombre').value.trim();
   const area = document.getElementById('editArea').value.trim();
@@ -166,75 +187,175 @@ window.guardarEdicion = async function() {
     alert('Complete todos los campos');
     return;
   }
-
-  const { error } = await sb
-    .from('estudiantes')
-    .update({
-      nombre_completo: nombre,
-      area_academica: area,
-      nivel: nivel,
-    })
+  const { error } = await sb.from('estudiantes')
+    .update({ nombre_completo: nombre, area_academica: area, nivel: nivel })
     .eq('cedula', cedula);
-
   if (error) {
     alert('Error al guardar: ' + error.message);
   } else {
     alert('Estudiante actualizado');
     document.getElementById('editForm').classList.add('hidden');
     cargarListaEstudiantes();
+    cargarReportes();
   }
-};
+}
 
-window.cancelarEdicion = function() {
+function cancelarEdicion() {
   document.getElementById('editForm').classList.add('hidden');
-};
+}
 
-document.getElementById('csvInput').addEventListener('change', (e) => {
-  csvFile = e.target.files[0];
-});
-
-document.getElementById('btnCargarCSV').addEventListener('click', () => {
-  cargarEstudiantesDesdeCSV(csvFile);
-});
-
-document.getElementById('btnFiltrar').addEventListener('click', () => {
-  const filtro = document.getElementById('filtroCedula').value.trim();
-  cargarListaEstudiantes(filtro);
-});
-
-document.getElementById('btnBuscarReporte').addEventListener('click', () => {
-  const cedula = document.getElementById('reporteCedula').value.trim();
-  cargarReportePorEstudiante(cedula);
-});
-
-document.getElementById('btnBorrarEstudiantes').addEventListener('click', async () => {
-  if (!confirm('¿Seguro que quiere borrar todos los estudiantes?')) return;
-  const { error } = await sb.from('estudiantes').delete().neq('cedula', '');
-  if (error) alert('Error borrando: ' + error.message);
-  else {
-    alert('Estudiantes borrados');
-    cargarListaEstudiantes();
+async function borrarEstudiantes(cedulas) {
+  if (cedulas.length === 0) {
+    alert('No hay estudiantes seleccionados');
+    return;
   }
-});
+  if (!confirm(`¿Seguro que quiere borrar ${cedulas.length} estudiantes seleccionados?`)) return;
+
+  for (const c of cedulas) {
+    await sb.from('asistencias').delete().eq('cedula', c);
+    await sb.from('estudiantes').delete().eq('cedula', c);
+  }
+  alert('Estudiantes borrados');
+  cargarListaEstudiantes();
+  cargarReportes();
+}
+
+async function borrarTodosEstudiantes() {
+  document.getElementById('confirmBorrarTodos').classList.remove('hidden');
+}
+
+async function confirmarBorrarTodos() {
+  // Borra asistencias y estudiantes
+  await sb.from('asistencias').delete().neq('cedula', '');
+  await sb.from('estudiantes').delete().neq('cedula', '');
+  alert('Todos los estudiantes y asistencias borrados');
+  cargarListaEstudiantes();
+  cargarReportes();
+  document.getElementById('confirmBorrarTodos').classList.add('hidden');
+}
+
+function cancelarBorrarTodos() {
+  document.getElementById('confirmBorrarTodos').classList.add('hidden');
+}
+
+function descargarExcel(data, nombreArchivo) {
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+  XLSX.writeFile(wb, nombreArchivo);
+}
+
+async function filtrarPorDias() {
+  const n = parseInt(document.getElementById('filtroDias').value);
+  if (isNaN(n)) {
+    alert('Ingrese un número válido');
+    return;
+  }
+  const filtrados = reportesFiltrados.filter(r => r.dias < n);
+  if (filtrados.length === 0) {
+    alert('No hay estudiantes con menos de ' + n + ' días');
+  }
+  mostrarReportes(filtrados);
+  return filtrados;
+}
 
 async function init() {
-  await cargarListaEstudiantes();
+  // Eventos pestañas
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+      document.getElementById(tab.dataset.tab).classList.remove('hidden');
+    });
+  });
 
+  // Cargar estudiantes CSV
+  document.getElementById('btnCargarCSV').addEventListener('click', () => {
+    const input = document.getElementById('csvInput');
+    cargarEstudiantesDesdeCSV(input.files[0]);
+  });
+
+  // Borrar todos estudiantes
+  document.getElementById('btnBorrarEstudiantes').addEventListener('click', borrarTodosEstudiantes);
+
+  // Confirmación borrar todos
+  document.getElementById('confirmSi').addEventListener('click', confirmarBorrarTodos);
+  document.getElementById('confirmNo').addEventListener('click', cancelarBorrarTodos);
+
+  // Buscar estudiantes
+  document.getElementById('btnFiltrar').addEventListener('click', () => {
+    const filtro = document.getElementById('filtroCedula').value.trim();
+    cargarListaEstudiantes(filtro);
+  });
+
+  // Borrar seleccionados
+  document.getElementById('btnBorrarSeleccionados').addEventListener('click', () => {
+    const seleccionados = Array.from(document.querySelectorAll('.chkEstudiante:checked')).map(chk => chk.dataset.cedula);
+    borrarEstudiantes(seleccionados);
+  });
+
+  // Guardar edición
+  document.getElementById('btnGuardarEdicion').addEventListener('click', guardarEdicion);
+  document.getElementById('btnCancelarEdicion').addEventListener('click', cancelarEdicion);
+
+  // Reportes: filtrar por días
+  document.getElementById('btnFiltrarDias').addEventListener('click', async () => {
+    reportesFiltrados = await filtrarPorDias() || [];
+  });
+
+  // Reportes: borrar filtrados
+  document.getElementById('btnBorrarFiltrados').addEventListener('click', async () => {
+    if (!confirm('¿Seguro que desea borrar los estudiantes filtrados?')) return;
+    const filtrados = await filtrarPorDias() || [];
+    if (filtrados.length === 0) {
+      alert('No hay estudiantes para borrar');
+      return;
+    }
+    await borrarEstudiantes(filtrados.map(r => r.cedula));
+    // Refrescar filtro
+    reportesFiltrados = await filtrarPorDias() || [];
+  });
+
+  // Descargar reportes Excel
+  document.getElementById('btnDescargarTodos').addEventListener('click', () => {
+    descargarExcel(reportesFiltrados.length ? reportesFiltrados : estudiantesCache.map(e => ({
+      cedula: e.cedula,
+      nombre_completo: e.nombre_completo,
+      dias: 0,
+      fechas: ''
+    })), 'Reporte_Completo.xlsx');
+  });
+
+  document.getElementById('btnDescargarFiltrados').addEventListener('click', () => {
+    if (reportesFiltrados.length === 0) {
+      alert('No hay datos filtrados para descargar');
+      return;
+    }
+    descargarExcel(reportesFiltrados, 'Reporte_Filtrado.xlsx');
+  });
+
+  // Cargar lista inicial y reportes
+  await cargarListaEstudiantes();
+  await cargarReportes();
+
+  // Iniciar lector QR en pestaña asistencia
   const qr = new Html5Qrcode('reader');
-  Html5Qrcode.getCameras()
-    .then(cams => {
-      if (!cams || cams.length === 0) {
-        showMsg('No se detectó cámara', true);
-        return;
-      }
-      qr.start(cams[0].id, { fps: 10, qrbox: 250 },
-        code => registrarAsistencia(code.trim()),
-        error => {}
+  try {
+    const cameras = await Html5Qrcode.getCameras();
+    if (cameras && cameras.length) {
+      await qr.start(
+        cameras[0].id,
+        { fps: 10, qrbox: 250 },
+        (decodedText) => registrarAsistencia(decodedText.trim()),
+        (errorMessage) => { /* ignore scan errors */ }
       );
-    })
-    .catch(() => showMsg('Error al acceder a la cámara', true));
+    } else {
+      showMsg('No se detectó cámara', true, 'msgAsistencia');
+    }
+  } catch {
+    showMsg('Error al iniciar cámara', true, 'msgAsistencia');
+  }
 }
 
 window.onload = init;
-
-
