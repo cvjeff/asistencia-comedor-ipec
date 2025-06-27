@@ -1,231 +1,67 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-import Papa from 'https://cdn.jsdelivr.net/npm/papaparse@5.4.1/+esm';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Control de Asistencia QR</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script type="module" src="app.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    h2, h3 { margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+    .form-container, .scanner, .reportes { margin-bottom: 30px; }
+    .hidden { display: none; }
+    input[type="text"], input[type="file"] { padding: 5px; margin: 5px 0; width: 100%; max-width: 300px; }
+    button { padding: 5px 10px; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h2>📘 Control de Asistencia QR</h2>
 
-const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxd3BpZXV4eXVkc3ZldHl0b2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwNTQ5MjksImV4cCI6MjA2NjYzMDkyOX0.FZOSbJTSiedP1yrwgXn_GLLeELxfzQ13fnIss7aDaJ4';
+  <div class="form-container">
+    <h3>📥 Cargar Estudiantes</h3>
+    <input type="file" id="csvInput" accept=".csv" />
+    <button id="btnCargarCSV">Cargar Estudiantes</button>
+    <button id="btnBorrarEstudiantes" style="margin-left:10px; background:#e74c3c; color:white;">Borrar Todos</button>
+  </div>
 
-const sb = createClient(supabaseUrl, supabaseKey);
+  <div class="scanner">
+    <h3>📷 Escanear QR</h3>
+    <div id="reader" style="width:100%; max-width:400px;"></div>
+    <div id="msg"></div>
+  </div>
 
-let csvFile = null;
-let estudiantesCache = [];
+  <div class="listado">
+    <h3>👥 Estudiantes Registrados</h3>
+    <input type="text" id="filtroCedula" placeholder="Buscar por cédula" />
+    <button id="btnFiltrar">Buscar</button>
+    <table>
+      <thead><tr><th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Editar</th></tr></thead>
+      <tbody id="tblEstudiantes"></tbody>
+    </table>
+  </div>
 
-function showMsg(text, error = false) {
-  const msg = document.getElementById('msg');
-  msg.textContent = text;
-  msg.style.color = error ? 'red' : 'green';
-}
+  <div class="reportes">
+    <h3>📊 Reportes de Asistencia</h3>
+    <input type="text" id="reporteCedula" placeholder="Buscar reporte por cédula" />
+    <button id="btnBuscarReporte">Ver Reporte</button>
+    <table>
+      <thead><tr><th>Cédula</th><th>Nombre</th><th>Días Asistidos</th><th>Fechas</th></tr></thead>
+      <tbody id="tblReportes"></tbody>
+    </table>
+  </div>
 
-async function cargarEstudiantesDesdeCSV(file) {
-  if (!file) {
-    showMsg('Debe seleccionar un archivo CSV', true);
-    return;
-  }
-  Papa.parse(file, {
-    header: true,
-    skipEmptyLines: true,
-    complete: async ({ data }) => {
-      // Validar estructura mínima
-      const valid = data.every(row =>
-        row.cedula && row.nombre_completo && row.area_academica && row.nivel
-      );
-      if (!valid) {
-        showMsg('CSV inválido, revise las columnas.', true);
-        return;
-      }
-      // Insertar (evitar duplicados con upsert o eliminar previo)
-      // Para simplicidad solo insertamos
-      const { error } = await sb.from('estudiantes').insert(data, { upsert: true });
-      if (error) showMsg('Error al cargar estudiantes: ' + error.message, true);
-      else {
-        showMsg('Estudiantes cargados correctamente');
-        await cargarListaEstudiantes();
-      }
-    }
-  });
-}
+  <div class="hidden" id="editForm">
+    <h3>✏️ Editar Estudiante</h3>
+    <input type="text" id="editCedula" disabled /> <br />
+    <input type="text" id="editNombre" placeholder="Nombre completo" /><br />
+    <input type="text" id="editArea" placeholder="Área académica" /><br />
+    <input type="text" id="editNivel" placeholder="Nivel" /><br />
+    <button onclick="guardarEdicion()">Guardar</button>
+    <button onclick="cancelarEdicion()">Cancelar</button>
+  </div>
 
-async function cargarListaEstudiantes(filtro = '') {
-  let query = sb.from('estudiantes').select('*').order('nombre_completo');
-  if (filtro.trim()) query = query.ilike('cedula', `%${filtro}%`);
-  const { data, error } = await query;
-  if (error) {
-    showMsg('Error al cargar estudiantes: ' + error.message, true);
-    return;
-  }
-  estudiantesCache = data || [];
-  const tbody = document.getElementById('tblEstudiantes');
-  tbody.innerHTML = '';
-  for (const est of estudiantesCache) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${est.cedula}</td>
-      <td>${est.nombre_completo}</td>
-      <td>${est.area_academica}</td>
-      <td>${est.nivel}</td>
-      <td><button onclick="editarEstudiante('${est.cedula}')">Editar</button></td>
-    `;
-    tbody.appendChild(tr);
-  }
-}
+</body>
+</html>
 
-async function registrarAsistencia(cedula) {
-  // Verificar estudiante existe
-  const est = estudiantesCache.find(e => e.cedula === cedula);
-  if (!est) {
-    showMsg(`Cédula no registrada: ${cedula}`, true);
-    return;
-  }
-
-  // Verificar si ya tiene registro hoy
-  const hoy = new Date().toISOString().slice(0, 10);
-  const { data: asistenciaHoy, error } = await sb
-    .from('asistencias')
-    .select('*')
-    .eq('cedula', cedula)
-    .eq('fecha', hoy);
-  if (error) {
-    showMsg('Error al consultar asistencia', true);
-    return;
-  }
-  if (asistenciaHoy.length > 0) {
-    showMsg(`Ya se registró asistencia hoy para ${est.nombre_completo}`, true);
-    return;
-  }
-
-  const hora = new Date().toTimeString().split(' ')[0];
-  const { error: insertErr } = await sb.from('asistencias').insert({
-    cedula,
-    fecha: hoy,
-    hora,
-    area_academica: est.area_academica,
-    nivel: est.nivel,
-  });
-  if (insertErr) {
-    showMsg('Error al registrar asistencia: ' + insertErr.message, true);
-  } else {
-    showMsg(`Asistencia registrada para ${est.nombre_completo}`);
-    cargarReportePorEstudiante(document.getElementById('reporteCedula').value.trim());
-  }
-}
-
-async function cargarReportePorEstudiante(cedula) {
-  if (!cedula) {
-    document.getElementById('tblReportes').innerHTML = '';
-    return;
-  }
-  // Cargar estudiante para nombre
-  const est = estudiantesCache.find(e => e.cedula === cedula);
-  if (!est) {
-    showMsg('Estudiante no encontrado para reporte', true);
-    document.getElementById('tblReportes').innerHTML = '';
-    return;
-  }
-
-  // Cargar asistencias
-  const { data, error } = await sb
-    .from('asistencias')
-    .select('fecha')
-    .eq('cedula', cedula)
-    .order('fecha', { ascending: true });
-  if (error) {
-    showMsg('Error al cargar reporte: ' + error.message, true);
-    return;
-  }
-
-  // Contar días y mostrar fechas
-  const dias = data ? data.length : 0;
-  const fechas = data ? data.map(a => a.fecha).join(', ') : '';
-
-  const tbody = document.getElementById('tblReportes');
-  tbody.innerHTML = `
-    <tr>
-      <td>${est.cedula}</td>
-      <td>${est.nombre_completo}</td>
-      <td>${dias}</td>
-      <td>${fechas}</td>
-    </tr>
-  `;
-}
-
-window.editarEstudiante = function(cedula) {
-  const est = estudiantesCache.find(e => e.cedula === cedula);
-  if (!est) return alert('Estudiante no encontrado');
-  document.getElementById('editCedula').value = est.cedula;
-  document.getElementById('editNombre').value = est.nombre_completo;
-  document.getElementById('editArea').value = est.area_academica;
-  document.getElementById('editNivel').value = est.nivel;
-  document.getElementById('editForm').classList.remove('hidden');
-};
-
-window.guardarEdicion = async function() {
-  const cedula = document.getElementById('editCedula').value;
-  const nombre = document.getElementById('editNombre').value.trim();
-  const area = document.getElementById('editArea').value.trim();
-  const nivel = document.getElementById('editNivel').value.trim();
-
-  if (!nombre || !area || !nivel) {
-    alert('Complete todos los campos');
-    return;
-  }
-
-  const { error } = await sb
-    .from('estudiantes')
-    .update({
-      nombre_completo: nombre,
-      area_academica: area,
-      nivel: nivel,
-    })
-    .eq('cedula', cedula);
-
-  if (error) {
-    alert('Error al guardar: ' + error.message);
-  } else {
-    alert('Estudiante actualizado');
-    document.getElementById('editForm').classList.add('hidden');
-    cargarListaEstudiantes();
-  }
-};
-
-window.cancelarEdicion = function() {
-  document.getElementById('editForm').classList.add('hidden');
-};
-
-// Eventos UI
-document.getElementById('csvInput').addEventListener('change', (e) => {
-  csvFile = e.target.files[0];
-});
-
-document.getElementById('btnCargarCSV').addEventListener('click', () => {
-  cargarEstudiantesDesdeCSV(csvFile);
-});
-
-document.getElementById('btnFiltrar').addEventListener('click', () => {
-  const filtro = document.getElementById('filtroCedula').value.trim();
-  cargarListaEstudiantes(filtro);
-});
-
-document.getElementById('btnBuscarReporte').addEventListener('click', () => {
-  const cedula = document.getElementById('reporteCedula').value.trim();
-  cargarReportePorEstudiante(cedula);
-});
-
-// Inicializar lista y escáner QR
-async function init() {
-  await cargarListaEstudiantes();
-
-  const qr = new Html5Qrcode('reader');
-  Html5Qrcode.getCameras()
-    .then(cams => {
-      if (!cams || cams.length === 0) {
-        showMsg('No se detectó cámara', true);
-        return;
-      }
-      qr.start(cams[0].id, { fps: 10, qrbox: 250 },
-        code => registrarAsistencia(code.trim()),
-        error => {}
-      );
-    })
-    .catch(() => showMsg('Error al acceder a la cámara', true));
-}
-
-window.onload = init;
