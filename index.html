@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Control de Asistencia QR</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script type="module" src="app.js"></script>
@@ -23,6 +23,7 @@
     <h3>📥 Cargar Estudiantes</h3>
     <input type="file" id="csvInput" accept=".csv" />
     <button id="btnCargarCSV">Cargar Estudiantes</button>
+    <button id="btnBorrarEstudiantes" style="margin-left:10px; background:#e74c3c; color:white;">Borrar Todos</button>
   </div>
 
   <div class="scanner">
@@ -53,10 +54,10 @@
 
   <div class="hidden" id="editForm">
     <h3>✏️ Editar Estudiante</h3>
-    <input type="text" id="editCedula" disabled /> <br>
-    <input type="text" id="editNombre" placeholder="Nombre completo" /><br>
-    <input type="text" id="editArea" placeholder="Área académica" /><br>
-    <input type="text" id="editNivel" placeholder="Nivel" /><br>
+    <input type="text" id="editCedula" disabled /> <br />
+    <input type="text" id="editNombre" placeholder="Nombre completo" /><br />
+    <input type="text" id="editArea" placeholder="Área académica" /><br />
+    <input type="text" id="editNivel" placeholder="Nivel" /><br />
     <button onclick="guardarEdicion()">Guardar</button>
     <button onclick="cancelarEdicion()">Cancelar</button>
   </div>
