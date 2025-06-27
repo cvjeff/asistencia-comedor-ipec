@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Asistencia QR</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script type="module" src="app.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    h2,h3 { margin-bottom: 8px; }
+    #reader { width: 100%; max-width: 400px; margin: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+    .presente { background: #d0f0c0; }
+    #msg { margin-top: 10px; min-height: 20px; }
+  </style>
+</head>
+<body>
+  <h2>📕 Asistencia QR</h2>
+
+  <h3>1. Carga masiva de estudiantes</h3>
+  <input type="file" id="csvInput" accept=".csv" />
+
+  <h3>2. Escanear QR para registrar asistencia</h3>
+  <div id="reader"></div>
+  <div id="msg"></div>
+
+  <h3>3. Registros del día</h3>
+  <button id="btnExport">Exportar CSV</button>
+  <table>
+    <thead><tr><th>Cédula</th><th>Nombre</th><th>Fecha</th><th>Hora</th></tr></thead>
+    <tbody id="tblAssist"></tbody>
+  </table>
+</body>
+</html>
+
