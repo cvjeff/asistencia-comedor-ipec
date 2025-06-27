@@ -6,88 +6,226 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 const sb = createClient(supabaseUrl, supabaseKey);
 
-function showMsg(txt, error = false) {
-  const el = document.getElementById('msg');
-  el.textContent = txt;
-  el.style.color = error ? 'red' : 'green';
+let csvFile = null;
+let estudiantesCache = [];
+
+function showMsg(text, error = false) {
+  const msg = document.getElementById('msg');
+  msg.textContent = text;
+  msg.style.color = error ? 'red' : 'green';
 }
 
-async function loadCSV(file) {
+async function cargarEstudiantesDesdeCSV(file) {
+  if (!file) {
+    showMsg('Debe seleccionar un archivo CSV', true);
+    return;
+  }
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
     complete: async ({ data }) => {
-      const { error } = await sb.from('estudiantes').insert(data);
-      if (error) showMsg('Error al cargar: ' + error.message, true);
-      else showMsg('✅ Estudiantes cargados');
+      // Validar estructura mínima
+      const valid = data.every(row =>
+        row.cedula && row.nombre_completo && row.area_academica && row.nivel
+      );
+      if (!valid) {
+        showMsg('CSV inválido, revise las columnas.', true);
+        return;
+      }
+      // Insertar (evitar duplicados con upsert o eliminar previo)
+      // Para simplicidad solo insertamos
+      const { error } = await sb.from('estudiantes').insert(data, { upsert: true });
+      if (error) showMsg('Error al cargar estudiantes: ' + error.message, true);
+      else {
+        showMsg('Estudiantes cargados correctamente');
+        await cargarListaEstudiantes();
+      }
     }
   });
 }
 
+async function cargarListaEstudiantes(filtro = '') {
+  let query = sb.from('estudiantes').select('*').order('nombre_completo');
+  if (filtro.trim()) query = query.ilike('cedula', `%${filtro}%`);
+  const { data, error } = await query;
+  if (error) {
+    showMsg('Error al cargar estudiantes: ' + error.message, true);
+    return;
+  }
+  estudiantesCache = data || [];
+  const tbody = document.getElementById('tblEstudiantes');
+  tbody.innerHTML = '';
+  for (const est of estudiantesCache) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${est.cedula}</td>
+      <td>${est.nombre_completo}</td>
+      <td>${est.area_academica}</td>
+      <td>${est.nivel}</td>
+      <td><button onclick="editarEstudiante('${est.cedula}')">Editar</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
 async function registrarAsistencia(cedula) {
-  const { data: est } = await sb.from('estudiantes').select('*').eq('cedula', cedula).single();
+  // Verificar estudiante existe
+  const est = estudiantesCache.find(e => e.cedula === cedula);
   if (!est) {
-    showMsg(`❌ Cédula no encontrada: ${cedula}`, true);
+    showMsg(`Cédula no registrada: ${cedula}`, true);
     return;
   }
 
-  const now = new Date();
-  const fecha = now.toISOString().split('T')[0];
-  const hora = now.toTimeString().split(' ')[0];
+  // Verificar si ya tiene registro hoy
+  const hoy = new Date().toISOString().slice(0, 10);
+  const { data: asistenciaHoy, error } = await sb
+    .from('asistencias')
+    .select('*')
+    .eq('cedula', cedula)
+    .eq('fecha', hoy);
+  if (error) {
+    showMsg('Error al consultar asistencia', true);
+    return;
+  }
+  if (asistenciaHoy.length > 0) {
+    showMsg(`Ya se registró asistencia hoy para ${est.nombre_completo}`, true);
+    return;
+  }
 
-  const { error } = await sb.from('asistencias').insert({
-    cedula, fecha, hora,
+  const hora = new Date().toTimeString().split(' ')[0];
+  const { error: insertErr } = await sb.from('asistencias').insert({
+    cedula,
+    fecha: hoy,
+    hora,
     area_academica: est.area_academica,
-    nivel: est.nivel
+    nivel: est.nivel,
   });
-
-  if (error) showMsg('❌ Error al guardar asistencia', true);
-  else {
-    showMsg(`✅ ${est.nombre_completo} presente`);
-    cargarTabla();
+  if (insertErr) {
+    showMsg('Error al registrar asistencia: ' + insertErr.message, true);
+  } else {
+    showMsg(`Asistencia registrada para ${est.nombre_completo}`);
+    cargarReportePorEstudiante(document.getElementById('reporteCedula').value.trim());
   }
 }
 
-async function cargarTabla() {
-  const hoy = new Date().toISOString().split('T')[0];
-  const { data, error } = await sb.from('asistencias').select('*').eq('fecha', hoy);
-  if (error) return;
-
-  const tbl = document.getElementById('tblAssist');
-  tbl.innerHTML = '';
-  for (const a of data) {
-    const { data: est } = await sb.from('estudiantes').select('nombre_completo').eq('cedula', a.cedula).single();
-    const fila = document.createElement('tr');
-    fila.innerHTML = `<td>${a.cedula}</td><td>${est.nombre_completo}</td><td>${a.fecha}</td><td>${a.hora}</td>`;
-    tbl.appendChild(fila);
+async function cargarReportePorEstudiante(cedula) {
+  if (!cedula) {
+    document.getElementById('tblReportes').innerHTML = '';
+    return;
   }
+  // Cargar estudiante para nombre
+  const est = estudiantesCache.find(e => e.cedula === cedula);
+  if (!est) {
+    showMsg('Estudiante no encontrado para reporte', true);
+    document.getElementById('tblReportes').innerHTML = '';
+    return;
+  }
+
+  // Cargar asistencias
+  const { data, error } = await sb
+    .from('asistencias')
+    .select('fecha')
+    .eq('cedula', cedula)
+    .order('fecha', { ascending: true });
+  if (error) {
+    showMsg('Error al cargar reporte: ' + error.message, true);
+    return;
+  }
+
+  // Contar días y mostrar fechas
+  const dias = data ? data.length : 0;
+  const fechas = data ? data.map(a => a.fecha).join(', ') : '';
+
+  const tbody = document.getElementById('tblReportes');
+  tbody.innerHTML = `
+    <tr>
+      <td>${est.cedula}</td>
+      <td>${est.nombre_completo}</td>
+      <td>${dias}</td>
+      <td>${fechas}</td>
+    </tr>
+  `;
 }
 
-document.getElementById('csvInput').addEventListener('change', e => {
-  if (e.target.files.length) loadCSV(e.target.files[0]);
+window.editarEstudiante = function(cedula) {
+  const est = estudiantesCache.find(e => e.cedula === cedula);
+  if (!est) return alert('Estudiante no encontrado');
+  document.getElementById('editCedula').value = est.cedula;
+  document.getElementById('editNombre').value = est.nombre_completo;
+  document.getElementById('editArea').value = est.area_academica;
+  document.getElementById('editNivel').value = est.nivel;
+  document.getElementById('editForm').classList.remove('hidden');
+};
+
+window.guardarEdicion = async function() {
+  const cedula = document.getElementById('editCedula').value;
+  const nombre = document.getElementById('editNombre').value.trim();
+  const area = document.getElementById('editArea').value.trim();
+  const nivel = document.getElementById('editNivel').value.trim();
+
+  if (!nombre || !area || !nivel) {
+    alert('Complete todos los campos');
+    return;
+  }
+
+  const { error } = await sb
+    .from('estudiantes')
+    .update({
+      nombre_completo: nombre,
+      area_academica: area,
+      nivel: nivel,
+    })
+    .eq('cedula', cedula);
+
+  if (error) {
+    alert('Error al guardar: ' + error.message);
+  } else {
+    alert('Estudiante actualizado');
+    document.getElementById('editForm').classList.add('hidden');
+    cargarListaEstudiantes();
+  }
+};
+
+window.cancelarEdicion = function() {
+  document.getElementById('editForm').classList.add('hidden');
+};
+
+// Eventos UI
+document.getElementById('csvInput').addEventListener('change', (e) => {
+  csvFile = e.target.files[0];
 });
 
-const qr = new Html5Qrcode('reader');
-Html5Qrcode.getCameras()
-  .then(cams => cams && cams.length
-    ? qr.start(cams[0].id, { fps: 10, qrbox: 250 },
+document.getElementById('btnCargarCSV').addEventListener('click', () => {
+  cargarEstudiantesDesdeCSV(csvFile);
+});
+
+document.getElementById('btnFiltrar').addEventListener('click', () => {
+  const filtro = document.getElementById('filtroCedula').value.trim();
+  cargarListaEstudiantes(filtro);
+});
+
+document.getElementById('btnBuscarReporte').addEventListener('click', () => {
+  const cedula = document.getElementById('reporteCedula').value.trim();
+  cargarReportePorEstudiante(cedula);
+});
+
+// Inicializar lista y escáner QR
+async function init() {
+  await cargarListaEstudiantes();
+
+  const qr = new Html5Qrcode('reader');
+  Html5Qrcode.getCameras()
+    .then(cams => {
+      if (!cams || cams.length === 0) {
+        showMsg('No se detectó cámara', true);
+        return;
+      }
+      qr.start(cams[0].id, { fps: 10, qrbox: 250 },
         code => registrarAsistencia(code.trim()),
-        _ => {}
-      )
-    : showMsg('No se detecta cámara', true)
-  )
-  .catch(() => showMsg('Error de cámara', true));
+        error => {}
+      );
+    })
+    .catch(() => showMsg('Error al acceder a la cámara', true));
+}
 
-document.getElementById('btnExport').addEventListener('click', async () => {
-  const hoy = new Date().toISOString().split('T')[0];
-  const { data, error } = await sb.from('asistencias').select('cedula,fecha,hora').eq('fecha', hoy);
-  if (error) return alert(error.message);
-
-  const csv = Papa.unparse(data);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `asistencia_${hoy}.csv`;
-  a.click();
-});
-
-window.addEventListener('load', cargarTabla);
+window.onload = init;
