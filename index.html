@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control de Asistencia - IPEC Barva</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      margin: 0;
+      background: #f7fafd;
+      color: #222;
+      display: flex;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+    header {
+      padding: 32px 0 20px 0;
+      text-align: center;
+      background: #fff;
+      border-bottom: 1px solid #e6e8ee;
+      margin-bottom: 30px;
+    }
+    header img {
+      max-width: 145px;
+      display: block;
+      margin: 0 auto 12px auto;
+      border-radius: 10px;
+    }
+    header h1 {
+      font-size: 2.2em;
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    header h2 {
+      font-size: 1.25em;
+      margin: 10px 0 0 0;
+      font-weight: 400;
+      color: #4674A9;
+      letter-spacing: 0.5px;
+    }
+    .main-container {
+      flex: 1 0 auto;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 16px 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .asistencia-block {
+      background: #fff;
+      border-radius: 13px;
+      padding: 24px 12px 20px 12px;
+      margin: 0 auto 10px auto;
+      box-shadow: none;
+      border: 1px solid #e7e9f3;
+      max-width: 410px;
+      position: relative;
+    }
+    .asistencia-block h3 {
+      font-size: 1.15em;
+      margin-bottom: 15px;
+      color: #2b528b;
+      font-weight: 600;
+    }
+    #reader {
+      width: 310px; max-width: 100%; margin: 0 auto 8px auto; border-radius: 8px;
+      transition: filter 0.18s;
+      background: #f6fafd;
+    }
+    #reader.hide {
+      display: none !important;
+    }
+    #adminBtn {
+      display: block;
+      margin: 0 auto 12px auto;
+      background: #4d7bc0;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      padding: 10px 0;
+      width: 210px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      transition: background 0.18s;
+    }
+    #adminBtn:hover { background: #285194; }
+    .admin-module {
+      background: #fff;
+      border-radius: 13px;
+      border: 1px solid #e7e9f3;
+      margin: 0 auto 10px auto;
+      padding: 0;
+      box-shadow: none;
+      max-width: 700px;
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      animation: fadein .4s;
+    }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+    .tabs-admin {
+      display: flex;
+      gap: 0;
+      margin-bottom: 0;
+      border-bottom: 1px solid #e7e9f3;
+      background: #f6f8fc;
+      border-radius: 13px 13px 0 0;
+    }
+    .tab-admin {
+      flex: 1;
+      padding: 12px 0;
+      cursor: pointer;
+      text-align: center;
+      background: none;
+      color: #4674A9;
+      font-weight: 500;
+      font-size: 1.01em;
+      border: none;
+      border-radius: 13px 13px 0 0;
+      transition: background .15s, color .15s;
+      letter-spacing: .2px;
+    }
+    .tab-admin.active {
+      background: #fff;
+      color: #183357;
+      border-bottom: 2px solid #4674A9;
+      font-weight: 600;
+    }
+    .tab-content-admin {
+      display: none;
+      background: #fff;
+      border-radius: 0 0 13px 13px;
+      padding: 26px 12px 12px 12px;
+    }
+    .tab-content-admin.active { display: block; }
+    table {
+      width:100%;
+      border-collapse: collapse;
+      margin-top:10px;
+      background: #fff;
+      font-size: 0.98em;
+    }
+    th, td {
+      border: none;
+      padding: 6px 3px;
+      text-align:center;
+      border-bottom: 1px solid #f1f2f8;
+    }
+    th { color: #345184; font-weight: 600; background: #f8fafd; }
+    tr:last-child td { border-bottom: none; }
+    button, .tab-admin {
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 1em;
+    }
+    button {
+      background: #ecf3fc;
+      color: #375c91;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin: 2px;
+      font-weight: 500;
+      transition: background 0.16s;
+    }
+    button:hover { background: #d1e4fb;}
+    input[type="text"], input[type="file"], input[type="number"], input[type="password"], input[type="date"] {
+      margin: 6px 0 0 0; padding:7px; width:100%; max-width:240px;
+      border: 1px solid #bcd4e8; border-radius: 5px; background: #f9fbfd;
+      font-size:1em;
+      font-family: 'Inter', Arial, sans-serif;
+      transition: border .12s;
+    }
+    input[type="file"] { padding: 4px 2px;}
+    input:focus { border: 1.5px solid #4674A9; outline: none; background: #f6f9fc;}
+    .modal, #loginBox {
+      position: fixed; top: 0; left: 0; width:100vw; height:100vh; background:rgba(40,52,75,0.10);
+      display:flex; align-items:center; justify-content:center; z-index:10;
+      visibility: hidden;
+    }
+    .modal.show, #loginBox.show { visibility: visible;}
+    .modal-content, #loginForm {
+      background:white; padding:26px 16px 22px 16px; border-radius:11px; text-align:center;
+      min-width: 300px; display: flex; flex-direction: column; gap: 10px;
+      box-shadow: 0 2px 14px #1b24341a;
+      border: 1px solid #e7e9f3;
+    }
+    #loginForm h3 { margin-bottom: 12px;}
+    #loginForm button { margin-top: 10px;}
+    #loginError { color: #e74c3c; min-height: 24px;}
+    footer {
+      text-align: center;
+      font-size: 0.97em;
+      color: #8190a8;
+      background: #f7fafd;
+      padding: 24px 2vw 14px 2vw;
+      letter-spacing: 0.18px;
+      border-top: 1px solid #e6e8ee;
+      flex-shrink: 0;
+      margin-top: 30px;
+    }
+    @media (max-width: 900px) {
+      .main-container { padding: 2vw; }
+      .admin-module, .asistencia-block { padding: 18px 2vw;}
+      #adminBtn { width: 100%; }
+    }
+    @media (max-width: 700px) {
+      .main-container { gap: 12px; }
+      .asistencia-block, .admin-module {padding:12px 2vw;}
+      .tab-admin {padding:8px 5vw;}
+      .tab-content-admin {padding: 12px 2vw;}
+      #loginForm {padding:10px 2vw;}
+      th, td {font-size: 0.95em;}
+    }
+    @media (max-width: 480px) {
+      header {padding: 22px 0 14px 0;}
+      .main-container {gap: 7px;}
+      .asistencia-block, .admin-module {padding:9px 3vw;}
+      th, td { font-size: 0.9em;}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="Logo PNG.png" alt="IPEC Barva" />
+    <h1>Control de Asistencia</h1>
+    <h2>Comedor estudiantil IPEC Barva</h2>
+  </header>
+  <div class="main-container">
+    <div class="asistencia-block">
+      <h3>Registrar Asistencia (QR)</h3>
+      <div id="reader"></div>
+      <!-- Sonidos -->
+      <audio id="sndOk" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12bcb6e6c3.mp3" preload="auto"></audio>
+      <audio id="sndFail" src="https://cdn.pixabay.com/audio/2022/07/26/audio_124b9bfa71.mp3" preload="auto"></audio>
+    </div>
+    <button id="adminBtn">Módulo Administrador</button>
+    <div class="admin-module" id="adminModule">
+      <div class="tabs-admin">
+        <div class="tab-admin active" data-tab="cargar">Cargar Estudiantes</div>
+        <div class="tab-admin" data-tab="registrados">Estudiantes Registrados</div>
+        <div class="tab-admin" data-tab="reportes">Reportes</div>
+      </div>
+      <div id="cargar" class="tab-content-admin active">
+        <h4>Cargar Estudiantes</h4>
+        <input type="file" id="csvInput" accept=".csv" />
+        <button id="btnCargarCSV">Cargar CSV</button>
+        <hr style="margin:17px 0 7px 0;">
+        <div style="margin-bottom:5px; font-weight:600;">Registro Manual</div>
+        <input type="text" id="manCedula" placeholder="Cédula" />
+        <input type="text" id="manNombre" placeholder="Nombre Completo" />
+        <input type="text" id="manArea" placeholder="Área Académica" />
+        <input type="text" id="manNivel" placeholder="Nivel" />
+        <button id="btnRegistroManual">Registrar Manual</button>
+      </div>
+      <div id="registrados" class="tab-content-admin">
+        <h4>Estudiantes Registrados</h4>
+        <input type="text" id="filtroCedula" placeholder="Filtrar por cédula" />
+        <button id="btnFiltrar">Filtrar</button>
+        <button id="btnGenerarQRPdf">Generar QR PDF</button>
+        <table>
+          <thead><tr><th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Acciones</th></tr></thead>
+          <tbody id="tblEstudiantes"></tbody>
+        </table>
+        <div id="editForm" style="display:none; margin-top:15px;">
+          <h4>Editar Estudiante</h4>
+          <input type="text" id="editCedula" disabled /><br />
+          <input type="text" id="editNombre" /><br />
+          <input type="text" id="editArea" /><br />
+          <input type="text" id="editNivel" /><br />
+          <button id="btnGuardarEdicion">Guardar</button>
+          <button id="btnEliminarEstudiante">Eliminar</button>
+          <button id="btnCancelarEdicion">Cancelar</button>
+        </div>
+      </div>
+      <div id="reportes" class="tab-content-admin">
+        <h4>Reportes de Asistencia</h4>
+        <input type="text" id="filtroCedulaReporte" placeholder="Filtrar cédula" style="width:180px;" />
+        <button id="btnFiltrarCed">Filtrar</button>
+        <br>
+        <input type="number" id="filtroDias" placeholder="Menos de días" style="width:120px;" />
+        <button id="btnFiltrarDias">Filtrar Días</button>
+        <button id="btnDescargarTodos">Descargar Excel</button>
+        <hr>
+        <label><b>Consultar por fecha:</b></label>
+        <input type="date" id="reporteFecha" />
+        <button id="btnFiltrarPorFecha">Mostrar asistencia por día</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Cédula</th>
+              <th>Nombre</th>
+              <th>Área</th>
+              <th>Nivel</th>
+            </tr>
+          </thead>
+          <tbody id="tblReportesFecha"></tbody>
+        </table>
+        <div id="totalAsistenciasPorFecha" style="margin:8px 0 16px 0; font-weight:bold; color:#184778;"></div>
+        <hr>
+        <table>
+          <thead><tr><th>Cédula</th><th>Nombre</th><th>Días</th><th>Fechas</th></tr></thead>
+          <tbody id="tblReportes"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div id="attendanceModal" class="modal"><div class="modal-content"><p id="modalText"></p><button id="modalClose">OK</button></div></div>
+  <div id="loginBox">
+    <form id="loginForm" autocomplete="off">
+      <h3>Ingreso administrador</h3>
+      <input type="text" id="loginUser" placeholder="Usuario" autocomplete="username" required />
+      <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password" required />
+      <button id="btnLogin" type="submit">Entrar</button>
+      <div id="loginError"></div>
+    </form>
+  </div>
+  <footer>
+    Todos los derechos reservados: Ing. Jeffry Carballo Vargas, Mag.
+  </footer>
+  <script>
+    // Supabase config
+    const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxd3BpZXV4eXVkc3ZldHl0b2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwNTQ5MjksImV4cCI6MjA2NjYzMDkyOX0.FZOSbJTSiedP1yrwgXn_GLLeELxfzQ13fnIss7aDaJ4';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let estudiantesCache = [], reportes = [], html5Qr, editCedula = null;
+    let modalActivo = false;
+    let registroEnProceso = false;
+
+    const sndOk = document.getElementById("sndOk");
+    const sndFail = document.getElementById("sndFail");
+
+    // Fecha local en formato YYYY-MM-DD (no UTC)
+    function getFechaLocalISO() {
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().slice(0,10);
+    }
+
+    // --------- DESBLOQUEAR SONIDOS EN EL PRIMER CLICK/TOQUE ----------
+    function unlockSounds() {
+      try { sndOk.play(); sndOk.pause(); sndOk.currentTime = 0; } catch {}
+      try { sndFail.play(); sndFail.pause(); sndFail.currentTime = 0; } catch {}
+      window.removeEventListener('click', unlockSounds);
+      window.removeEventListener('touchstart', unlockSounds);
+    }
+    window.addEventListener('click', unlockSounds);
+    window.addEventListener('touchstart', unlockSounds);
+
+    async function startQR() {
+      if (html5Qr) { try { await html5Qr.stop(); } catch {} }
+      html5Qr = new Html5Qrcode('reader');
+      document.getElementById('reader').classList.remove('hide');
+      try {
+        await html5Qr.start({ facingMode: 'environment' }, { fps:10, qrbox:250 }, msg => registerAttendance(msg));
+      } catch(e) { }
+    }
+    function stopQR() { if (html5Qr) html5Qr.stop(); }
+
+    // MODAL (bloquea dobles escaneos)
+    const modal = document.getElementById('attendanceModal');
+    const modalText = document.getElementById('modalText');
+    function showModal(msg, color, tipo) {
+      modalActivo = true;
+      modalText.innerHTML = msg;
+      modalText.style.color = color || "#183357";
+      modal.classList.add('show');
+      document.getElementById('reader').classList.add('hide');
+      stopQR();
+      if (tipo === "ok") { try { sndOk.currentTime=0; sndOk.play(); } catch{} }
+      if (tipo === "fail") { try { sndFail.currentTime=0; sndFail.play(); } catch{} }
+    }
+    document.getElementById('modalClose').onclick = () => {
+      modal.classList.remove('show');
+      modalActivo = false;
+      document.getElementById('reader').classList.remove('hide');
+      setTimeout(startQR, 250);
+    };
+
+    // QR ASISTENCIA
+    async function registerAttendance(ced) {
+      if (modalActivo || registroEnProceso) return;
+      registroEnProceso = true;
+      try {
+        const { data: estudiantes } = await supabaseClient
+          .from('estudiantes')
+          .select('*')
+          .eq('cedula', ced)
+          .limit(1);
+
+        if (!estudiantes || estudiantes.length === 0) {
+          showModal(
+            `<b>Estudiante NO encontrado</b><br>Cédula: <b>${ced}</b>`,
+            "#e74c3c", "fail"
+          );
+          registroEnProceso = false;
+          return;
+        }
+        const estudiante = estudiantes[0];
+        const hoy = getFechaLocalISO();
+
+        const { data: existing } = await supabaseClient
+          .from('asistencias')
+          .select('*')
+          .eq('cedula', ced)
+          .eq('fecha', hoy);
+
+        if (existing && existing.length) {
+          showModal(
+            `<b>Asistencia YA registrada</b><br>
+            <span style="font-size:1.13em">${estudiante.nombre_completo}</span><br>
+            <span style="font-size:1.05em">Cédula: ${ced}</span>`,
+            "#e74c3c", "fail"
+          );
+          registroEnProceso = false;
+          return;
+        }
+
+        await supabaseClient.from('asistencias').insert({
+          cedula: ced,
+          fecha: hoy,
+          hora: new Date().toLocaleTimeString(),
+          area_academica: estudiante.area_academica,
+          nivel: estudiante.nivel
+        });
+
+        showModal(
+          `<b>Asistencia registrada</b><br>
+          <span style="font-size:1.13em">${estudiante.nombre_completo}</span><br>
+          <span style="font-size:1.05em">Cédula: ${ced}</span>`,
+          "#18863d", "ok"
+        );
+        if (window.loadReports) loadReports();
+      } catch(e) {
+        showModal("Error de red. Intente de nuevo.", "#e74c3c", "fail");
+      }
+      registroEnProceso = false;
+    }
+
+    // ADMIN LOGIN FLOW
+    const adminBtn = document.getElementById('adminBtn');
+    const adminModule = document.getElementById('adminModule');
+    const loginBox = document.getElementById('loginBox');
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    adminBtn.onclick = () => { loginBox.classList.add('show'); }
+    loginBox.classList.remove('show');
+    adminModule.style.display = 'none';
+
+    loginForm.onsubmit = async function(e) {
+      e.preventDefault();
+      loginError.textContent = '';
+      const username = document.getElementById('loginUser').value.trim();
+      const password = document.getElementById('loginPass').value.trim();
+      if (!username || !password) {
+        loginError.textContent = 'Digite usuario y contraseña';
+        return false;
+      }
+      const { data, error } = await supabaseClient
+        .from('admin_users')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password);
+
+      if (error || !data || data.length === 0) {
+        loginError.textContent = 'Usuario o contraseña incorrectos';
+        return false;
+      }
+      loginBox.classList.remove('show');
+      adminModule.style.display = 'flex';
+      await loadStudents();
+      await loadReports();
+      return false;
+    };
+
+    // TABS ADMIN
+    document.querySelectorAll('.tab-admin').forEach(t => t.onclick = () => {
+      document.querySelectorAll('.tab-admin').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelectorAll('.tab-content-admin').forEach(c => c.classList.remove('active'));
+      document.getElementById(t.dataset.tab).classList.add('active');
+    });
+
+    // ESTUDIANTES ADMIN
+    document.getElementById('btnCargarCSV').onclick = async () => {
+      const f = document.getElementById('csvInput').files[0];
+      if (!f) return showModal('Seleccione un archivo CSV.', "#e74c3c","fail");
+      const text = await f.text();
+      let success = 0, fail = 0;
+      try {
+        const result = Papa.parse(text, { header:true, skipEmptyLines:true });
+        for (let row of result.data) {
+          const { error } = await supabaseClient.from('estudiantes').upsert({
+            cedula:row.cedula,
+            nombre_completo:row.nombre_completo,
+            area_academica:row.area_academica,
+            nivel:row.nivel
+          });
+          if (error) fail++; else success++;
+        }
+        if(success)
+          showModal(`Carga exitosa: <b>${success}</b> registros guardados.<br>${fail ? fail + ' errores.' : ''}`, "#18863d","ok");
+        else
+          showModal('No se cargó ningún registro válido.', "#e74c3c","fail");
+      } catch(e) {
+        showModal('Error al procesar el CSV.', "#e74c3c","fail");
+      }
+      loadStudents();
+    };
+
+    document.getElementById('btnRegistroManual').onclick = async () => {
+      const ced = document.getElementById('manCedula').value;
+      const nom = document.getElementById('manNombre').value;
+      const area = document.getElementById('manArea').value;
+      const niv = document.getElementById('manNivel').value;
+      if (!ced||!nom||!area||!niv) return showModal('Complete todos los campos.', "#e74c3c","fail");
+      const { error } = await supabaseClient.from('estudiantes').insert({ cedula:ced, nombre_completo:nom, area_academica:area, nivel:niv });
+      if(error) showModal('Error al registrar estudiante.', "#e74c3c","fail");
+      else showModal('Estudiante registrado exitosamente.', "#18863d","ok");
+      loadStudents();
+    };
+
+    async function loadStudents(filter='') {
+      const { data } = await supabaseClient.from('estudiantes').select('*').ilike('cedula','%'+filter+'%').order('nombre_completo');
+      estudiantesCache = data||[];
+      renderStudents();
+    }
+    function renderStudents() {
+      const tb = document.getElementById('tblEstudiantes'); tb.innerHTML='';
+      for (let e of estudiantesCache) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${e.cedula}</td><td>${e.nombre_completo}</td><td>${e.area_academica}</td><td>${e.nivel}</td><td><button class='editBtn'>Editar</button></td>`;
+        tr.querySelector('.editBtn').onclick = () => editStudent(e);
+        tb.appendChild(tr);
+      }
+    }
+    document.getElementById('btnFiltrar').onclick = () => loadStudents(document.getElementById('filtroCedula').value);
+
+    function editStudent(e) {
+      document.getElementById('editCedula').value = e.cedula;
+      document.getElementById('editNombre').value = e.nombre_completo;
+      document.getElementById('editArea').value = e.area_academica;
+      document.getElementById('editNivel').value = e.nivel;
+      document.getElementById('editForm').style.display = 'block';
+      editCedula = e.cedula;
+    }
+    document.getElementById('btnGuardarEdicion').onclick = async () => {
+      await supabaseClient.from('estudiantes').update({ nombre_completo:document.getElementById('editNombre').value, area_academica:document.getElementById('editArea').value, nivel:document.getElementById('editNivel').value }).eq('cedula',editCedula);
+      document.getElementById('editForm').style.display = 'none';
+      loadStudents();
+    };
+    document.getElementById('btnEliminarEstudiante').onclick = async () => {
+      if (!confirm('Eliminar?')) return;
+      await supabaseClient.from('estudiantes').delete().eq('cedula',editCedula);
+      document.getElementById('editForm').style.display = 'none';
+      loadStudents();
+    };
+    document.getElementById('btnCancelarEdicion').onclick = () => document.getElementById('editForm').style.display='none';
+
+    // REPORTES
+    let allAsistencias = [];
+    async function loadReports() {
+      const { data } = await supabaseClient.from('asistencias').select('*');
+      allAsistencias = data || [];
+      let map = {};
+      allAsistencias.forEach(r => { map[r.cedula] = map[r.cedula] || new Set(); map[r.cedula].add(r.fecha); });
+      reportes = estudiantesCache.map(e => ({
+        cedula:e.cedula,
+        nombre:e.nombre_completo,
+        dias: (map[e.cedula]||new Set()).size,
+        fechas: Array.from(map[e.cedula]||[]).join(', ')
+      }));
+      renderReports(reportes);
+    }
+    function renderReports(list) {
+      const tb = document.getElementById('tblReportes'); tb.innerHTML='';
+      for (let r of list) {
+        const tr = document.createElement('tr');
+        tr.innerHTML=`<td>${r.cedula}</td><td>${r.nombre}</td><td>${r.dias}</td><td>${r.fechas}</td>`;
+        tb.appendChild(tr);
+      }
+    }
+    document.getElementById('btnFiltrarDias').onclick = () => renderReports(reportes.filter(x=>x.dias < Number(document.getElementById('filtroDias').value)));
+    document.getElementById('btnFiltrarCed').onclick = () => renderReports(reportes.filter(x=>x.cedula.includes(document.getElementById('filtroCedulaReporte').value)));
+    document.getElementById('btnDescargarTodos').onclick = () => {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(reportes);
+      XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+      XLSX.writeFile(wb, 'Reporte.xlsx');
+    };
+
+    // REPORTE POR FECHA CON TOTAL
+    document.getElementById('btnFiltrarPorFecha').onclick = async () => {
+      const fecha = document.getElementById('reporteFecha').value;
+      const tbody = document.getElementById('tblReportesFecha');
+      const totalDiv = document.getElementById('totalAsistenciasPorFecha');
+      tbody.innerHTML = '';
+      totalDiv.textContent = '';
+      if (!fecha) {
+        return showModal('Seleccione una fecha para filtrar.', "#e74c3c");
+      }
+      // Busca todas las asistencias de esa fecha
+      const { data: asistencias } = await supabaseClient.from('asistencias').select('*').eq('fecha', fecha);
+      if (!asistencias || asistencias.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4">No hay asistencias ese día.</td></tr>';
+        totalDiv.textContent = 'Total de estudiantes registrados: 0';
+        return;
+      }
+
+      // Map: cedula => datos estudiante
+      const estudiantesMap = {};
+      estudiantesCache.forEach(e => estudiantesMap[e.cedula] = e);
+
+      let total = 0;
+      for (const a of asistencias) {
+        const est = estudiantesMap[a.cedula] || {};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${a.cedula}</td><td>${est.nombre_completo || ''}</td><td>${est.area_academica || ''}</td><td>${est.nivel || ''}</td>`;
+        tbody.appendChild(tr);
+        total++;
+      }
+      totalDiv.textContent = `Total de estudiantes registrados: ${total}`;
+    };
+
+    // QR PDF
+    document.getElementById('btnGenerarQRPdf').onclick = async () => {
+      const doc = new jspdf.jsPDF({ unit: 'cm', format: [21,29.7] });
+      let x=1, y=1;
+      for (const est of estudiantesCache) {
+        const canvas = document.createElement('canvas');
+        await QRCode.toCanvas(canvas, est.cedula, { width: 200 });
+        doc.addImage(canvas.toDataURL(), 'PNG', x, y, 6, 6);
+        doc.text(est.cedula, x, y+6.5);
+        doc.text(est.nombre_completo, x, y+7.2);
+        x += 7; if (x > 14) { x = 1; y += 8; if (y > 20) { doc.addPage(); y = 1; } }
+      }
+      doc.save('QRCodes.pdf');
+    };
+
+    window.onload = startQR;
+  </script>
+</body>
+</html>
