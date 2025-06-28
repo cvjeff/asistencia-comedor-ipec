@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Control de Asistencia QR - Administrador</title>
-
   <!-- Librerías externas -->
-  <script src="https://unpkg.com/html5-qrcode" defer></script>
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js" defer></script>
-
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
@@ -31,19 +31,17 @@
 <body>
 
   <h2>Control de Asistencia QR - Administrador</h2>
-
   <div class="tabs">
-    <div class="tab" data-tab="asistencia">Registrar Asistencia</div>
+    <div class="tab active" data-tab="asistencia">Registrar Asistencia</div>
     <div class="tab" data-tab="cargar">Cargar Estudiantes</div>
     <div class="tab" data-tab="registrados">Estudiantes Registrados</div>
     <div class="tab" data-tab="reportes">Reportes</div>
   </div>
 
-  <div id="asistencia" class="tab-content">
+  <div id="asistencia" class="tab-content active">
     <h3>Registrar Asistencia (QR)</h3>
     <div id="reader"></div>
   </div>
-
   <div id="cargar" class="tab-content">
     <h3>Cargar Estudiantes</h3>
     <input type="file" id="csvInput" accept=".csv" />
@@ -56,7 +54,6 @@
     <input type="text" id="manNivel" placeholder="Nivel" />
     <button id="btnRegistroManual">Registrar Manual</button>
   </div>
-
   <div id="registrados" class="tab-content">
     <h3>Estudiantes Registrados</h3>
     <input type="text" id="filtroCedula" placeholder="Filtrar por cédula" />
@@ -77,7 +74,6 @@
       <button id="btnCancelarEdicion">Cancelar</button>
     </div>
   </div>
-
   <div id="reportes" class="tab-content">
     <h3>Reportes de Asistencia</h3>
     <input type="text" id="filtroCedulaReporte" placeholder="Filtrar cedula" style="width:200px;" />
@@ -91,18 +87,15 @@
       <tbody id="tblReportes"></tbody>
     </table>
   </div>
-
   <div id="attendanceModal" class="modal"><div class="modal-content"><p id="modalText"></p><button id="modalClose">OK</button></div></div>
 
-  <script type="module">
-    // Variables globales
+  <script>
+    // Supabase config con TU LLAVE
     const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
-    const supabaseKey = 'PUBLIC_ANON_KEY';
-    const supabase = supabase.createClient ? supabase.createClient(supabaseUrl, supabaseKey) : createClient(supabaseUrl, supabaseKey);
-    let estudiantesCache = [];
-    let reportes = [];
-    let html5Qr;
-    let editCedula = null;
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxd3BpZXV4eXVkc3ZldHl0b2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwNTQ5MjksImV4cCI6MjA2NjYzMDkyOX0.FZOSbJTSiedP1yrwgXn_GLLeELxfzQ13fnIss7aDaJ4';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let estudiantesCache = [], reportes = [], html5Qr, editCedula = null;
 
     // Modal
     const modal = document.getElementById('attendanceModal');
@@ -111,30 +104,32 @@
     function showModal(msg) { modalText.innerText = msg; modal.classList.add('show'); }
 
     // Tabs
-    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
       document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById(t.dataset.tab).classList.add('active');
       if (t.dataset.tab === 'asistencia') startQR(); else stopQR();
-    }));
-    document.querySelector('.tab').click();
+    });
 
     // Start/stop QR
     async function startQR() {
+      if (html5Qr) { try { await html5Qr.stop(); } catch {} }
       html5Qr = new Html5Qrcode('reader');
-      try { await html5Qr.start({ facingMode: 'environment' }, { fps:10, qrbox:250 }, msg => registerAttendance(msg)); }
-      catch(e) { console.error(e); }
+      try {
+        await html5Qr.start({ facingMode: 'environment' }, { fps:10, qrbox:250 }, msg => registerAttendance(msg));
+      } catch(e) { console.error(e); }
     }
     function stopQR() { if (html5Qr) html5Qr.stop(); }
 
-    // Register Attendance
+    // Registrar Asistencia
     async function registerAttendance(ced) {
       const hoy = new Date().toISOString().slice(0,10);
-      const { data: existing } = await supabase.from('asistencias').select('*').eq('cedula',ced).eq('fecha',hoy);
-      if (existing.length) return showModal('Ya registrada hoy');
-      const { data } = await supabase.from('asistencias').insert({ cedula:ced, fecha:hoy, hora:new Date().toLocaleTimeString() });
+      const { data: existing } = await supabaseClient.from('asistencias').select('*').eq('cedula',ced).eq('fecha',hoy);
+      if (existing && existing.length) return showModal('Ya registrada hoy');
+      await supabaseClient.from('asistencias').insert({ cedula:ced, fecha:hoy, hora:new Date().toLocaleTimeString() });
       showModal('Asistencia registrada: ' + ced);
+      loadReports();
     }
 
     // CSV Upload
@@ -144,7 +139,7 @@
       const text = await f.text();
       const result = Papa.parse(text, { header:true, skipEmptyLines:true });
       for (let row of result.data) {
-        await supabase.from('estudiantes').upsert({ cedula:row.cedula, nombre_completo:row.nombre_completo, area_academica:row.area_academica, nivel:row.nivel });
+        await supabaseClient.from('estudiantes').upsert({ cedula:row.cedula, nombre_completo:row.nombre_completo, area_academica:row.area_academica, nivel:row.nivel });
       }
       loadStudents();
     };
@@ -156,14 +151,14 @@
       const area = document.getElementById('manArea').value;
       const niv = document.getElementById('manNivel').value;
       if (!ced||!nom||!area||!niv) return alert('Complete todo');
-      await supabase.from('estudiantes').insert({ cedula:ced, nombre_completo:nom, area_academica:area, nivel:niv });
+      await supabaseClient.from('estudiantes').insert({ cedula:ced, nombre_completo:nom, area_academica:area, nivel:niv });
       loadStudents();
     };
 
-    // Load Students
+    // Listar estudiantes
     async function loadStudents(filter='') {
-      const { data } = await supabase.from('estudiantes').select('*').ilike('cedula','%'+filter+'%').order('nombre_completo');
-      estudiantesCache = data;
+      const { data } = await supabaseClient.from('estudiantes').select('*').ilike('cedula','%'+filter+'%').order('nombre_completo');
+      estudiantesCache = data||[];
       renderStudents();
     }
     function renderStudents() {
@@ -177,7 +172,7 @@
     }
     document.getElementById('btnFiltrar').onclick = () => loadStudents(document.getElementById('filtroCedula').value);
 
-    // Edit Student
+    // Editar estudiante
     function editStudent(e) {
       document.getElementById('editCedula').value = e.cedula;
       document.getElementById('editNombre').value = e.nombre_completo;
@@ -187,23 +182,23 @@
       editCedula = e.cedula;
     }
     document.getElementById('btnGuardarEdicion').onclick = async () => {
-      await supabase.from('estudiantes').update({ nombre_completo:document.getElementById('editNombre').value, area_academica:document.getElementById('editArea').value, nivel:document.getElementById('editNivel').value }).eq('cedula',editCedula);
+      await supabaseClient.from('estudiantes').update({ nombre_completo:document.getElementById('editNombre').value, area_academica:document.getElementById('editArea').value, nivel:document.getElementById('editNivel').value }).eq('cedula',editCedula);
       document.getElementById('editForm').style.display = 'none';
       loadStudents();
     };
     document.getElementById('btnEliminarEstudiante').onclick = async () => {
       if (!confirm('Eliminar?')) return;
-      await supabase.from('estudiantes').delete().eq('cedula',editCedula);
+      await supabaseClient.from('estudiantes').delete().eq('cedula',editCedula);
       document.getElementById('editForm').style.display = 'none';
       loadStudents();
     };
     document.getElementById('btnCancelarEdicion').onclick = () => document.getElementById('editForm').style.display='none';
 
-    // Reports
+    // Reportes
     async function loadReports() {
-      const { data } = await supabase.from('asistencias').select('*');
+      const { data } = await supabaseClient.from('asistencias').select('*');
       let map = {};
-      data.forEach(r => { map[r.cedula] = map[r.cedula] || new Set(); map[r.cedula].add(r.fecha); });
+      (data||[]).forEach(r => { map[r.cedula] = map[r.cedula] || new Set(); map[r.cedula].add(r.fecha); });
       reportes = estudiantesCache.map(e => ({ cedula:e.cedula, nombre:e.nombre_completo, dias: (map[e.cedula]||new Set()).size, fechas: Array.from(map[e.cedula]||[]).join(', ')}));
       renderReports(reportes);
     }
@@ -224,11 +219,26 @@
       XLSX.writeFile(wb, 'Reporte.xlsx');
     };
 
-    // Init
+    // QR PDF
+    document.getElementById('btnGenerarQRPdf').onclick = async () => {
+      const doc = new jspdf.jsPDF({ unit: 'cm', format: [21,29.7] });
+      let x=1, y=1;
+      for (const est of estudiantesCache) {
+        const canvas = document.createElement('canvas');
+        await QRCode.toCanvas(canvas, est.cedula, { width: 200 });
+        doc.addImage(canvas.toDataURL(), 'PNG', x, y, 6, 6);
+        doc.text(est.cedula, x, y+6.5);
+        doc.text(est.nombre_completo, x, y+7.2);
+        x += 7; if (x > 14) { x = 1; y += 8; if (y > 20) { doc.addPage(); y = 1; } }
+      }
+      doc.save('QRCodes.pdf');
+    };
+
+    // Carga inicial
     window.addEventListener('load', async () => {
       await loadStudents();
       await loadReports();
-      document.querySelector('.tab[data-tab="asistencia"]').click();
+      startQR();
     });
   </script>
 </body>
