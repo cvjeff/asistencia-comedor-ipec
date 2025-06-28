@@ -1,40 +1,41 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Control de Asistencia QR - Administrador</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control de Asistencia QR - Administrador</title>
 
-<script src="https://unpkg.com/html5-qrcode"></script>
-<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <!-- Librerías externas -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  h2 { margin-bottom: 10px; }
-  .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-  .tab { padding: 10px 20px; cursor: pointer; background: #eee; border-radius: 5px 5px 0 0; user-select: none; flex: 1 1 150px; text-align: center; }
-  .tab.active { background: #3498db; color: white; font-weight: bold; }
-  .tab-content { border: 1px solid #ccc; border-top: none; padding: 15px; border-radius: 0 5px 5px 5px; }
-  .hidden { display: none; }
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { margin-bottom: 10px; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab { padding: 10px 20px; cursor: pointer; background: #eee; border-radius: 5px 5px 0 0; user-select: none; flex: 1 1 150px; text-align: center; }
+    .tab.active { background: #3498db; color: white; font-weight: bold; }
+    .tab-content { border: 1px solid #ccc; border-top: none; padding: 15px; border-radius: 0 5px 5px 5px; }
+    .hidden { display: none; }
 
-  /* Admin module style */
-  .admin-module .module-header { font-size: 1.2em; margin-bottom: 10px; color: #2c3e50; }
-  .admin-module .tab-content { background: #f9f9f9; }
+    /* Módulo Administrador */
+    .admin-module .module-header { font-size: 1.2em; margin-bottom: 10px; color: #2c3e50; }
+    .admin-module .tab-content { background: #f9f9f9; }
 
-  /* Modal styles */
-  .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-  .modal.hidden { display: none; }
-  .modal-content { background: white; padding: 20px; border-radius: 8px; max-width: 300px; text-align: center; }
-  .modal-content p { margin-bottom: 20px; font-size: 1.1em; }
+    /* Modal popup */
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+    .modal.hidden { display: none; }
+    .modal-content { background: white; padding: 20px; border-radius: 8px; max-width: 300px; text-align: center; }
+    .modal-content p { margin-bottom: 20px; font-size: 1.1em; }
 
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
-  button { padding: 5px 10px; margin-top: 5px; cursor: pointer; }
-  input[type="text"], input[type="file"], input[type="date"], input[type="number"] { padding: 5px; margin: 5px 0; width: 100%; max-width: 300px; }
-  #reader { width: 320px; max-width: 100%; margin-bottom: 10px; }
-</style>
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+    button { padding: 5px 10px; margin-top: 5px; cursor: pointer; }
+    input[type="text"], input[type="file"], input[type="date"], input[type="number"] { padding: 5px; margin: 5px 0; width: 100%; max-width: 300px; }
+    #reader { width: 320px; max-width: 100%; margin-bottom: 10px; }
+  </style>
 </head>
 <body>
 
@@ -47,7 +48,7 @@
     <div class="tab" data-tab="reportes">Reportes de Asistencia</div>
   </div>
 
-  <!-- Modal Popup para mensajes de asistencia -->
+  <!-- Modal para mensajes de asistencia -->
   <div id="attendanceModal" class="modal hidden">
     <div class="modal-content">
       <p id="modalText"></p>
@@ -55,12 +56,14 @@
     </div>
   </div>
 
+  <!-- Registrar Asistencia -->
   <div id="asistencia" class="tab-content">
     <h3>📷 Registrar Asistencia</h3>
     <div id="reader"></div>
   </div>
 
   <div class="admin-module">
+    <!-- Cargar Estudiantes -->
     <div id="cargar" class="tab-content hidden">
       <div class="module-header">📥 Cargar Estudiantes</div>
       <input type="file" id="csvInput" accept=".csv" />
@@ -74,6 +77,7 @@
       <button id="btnRegistroManual">Registrar Estudiante</button>
     </div>
 
+    <!-- Estudiantes Registrados -->
     <div id="registrados" class="tab-content hidden">
       <div class="module-header">👥 Estudiantes Registrados</div>
       <input type="text" id="filtroCedula" placeholder="Buscar por cédula" />
@@ -82,12 +86,7 @@
       <table>
         <thead>
           <tr>
-            <th><input type="checkbox" id="chkTodos" /></th>
-            <th>Cédula</th>
-            <th>Nombre</th>
-            <th>Área</th>
-            <th>Nivel</th>
-            <th>Acciones</th>
+            <th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Acciones</th>
           </tr>
         </thead>
         <tbody id="tblEstudiantes"></tbody>
@@ -104,9 +103,9 @@
       </div>
     </div>
 
+    <!-- Reportes de Asistencia -->
     <div id="reportes" class="tab-content hidden">
       <div class="module-header">📊 Reportes de Asistencia</div>
-
       <div>
         <label>Filtrar por cédula: </label>
         <input type="text" id="filtroCedulaReporte" placeholder="Cédula" style="width:150px" />
@@ -118,18 +117,13 @@
         <label> días</label>
         <button id="btnFiltrarDias">Filtrar</button>
       </div>
-
       <div style="margin-top:15px;">
         <button id="btnDescargarTodos">Descargar Reporte Excel</button>
       </div>
-
       <table>
         <thead>
           <tr>
-            <th>Cédula</th>
-            <th>Nombre</th>
-            <th>Días Asistidos</th>
-            <th>Fechas</th>
+            <th>Cédula</th><th>Nombre</th><th>Días Asistidos</th><th>Fechas</th>
           </tr>
         </thead>
         <tbody id="tblReportes"></tbody>
@@ -137,6 +131,7 @@
     </div>
   </div>
 
+  <!-- Script principal -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
