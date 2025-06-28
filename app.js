@@ -1,11 +1,13 @@
 // app.js
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import QRCode from 'https://cdn.jsdelivr.net/npm/qrcode/+esm';
+import { jsPDF } from 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 
 const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxd3BpZXV4eXVkc3ZldHl0b2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwNTQ5MjksImV4cCI6MjA2NjYzMDkyOX0.FZOSbJTSiedP1yrwgXn_GLLeELxfzQ13fnIss7aDaJ4';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-let qrScanner;
+let qrScanner = null;
 let estudianteEditando = null;
 
 function iniciarLectorQR() {
@@ -38,7 +40,7 @@ async function onScan(code) {
     nivel: estudiante.nivel
   });
 
-  alert(`Asistencia registrada para ${estudiante.nombre_completo}`);
+  alert(`Asistencia registrada`);
 }
 
 function setupTabs() {
@@ -187,6 +189,53 @@ async function agregarEstudianteManual() {
   cargarListaEstudiantes();
 }
 
+async function generarQRMasivo() {
+  const { data: estudiantes } = await supabase.from('estudiantes').select('*');
+
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const columnas = 6;
+  const filas = 6;
+  const espacioX = 30;
+  const espacioY = 45;
+  let x = 10;
+  let y = 10;
+  let count = 0;
+
+  for (let i = 0; i < estudiantes.length; i++) {
+    const est = estudiantes[i];
+
+    // Generar QR en canvas
+    const qrCanvas = document.createElement('canvas');
+    await QRCode.toCanvas(qrCanvas, est.cedula, { width: 50 });
+
+    const imgData = qrCanvas.toDataURL('image/png');
+
+    pdf.addImage(imgData, 'PNG', x, y, 25, 25);
+    pdf.setFontSize(8);
+    pdf.text(`${est.nombre_completo}`, x, y + 32);
+    pdf.text(`Cédula: ${est.cedula}`, x, y + 38);
+
+    x += espacioX;
+    count++;
+    if (count % columnas === 0) {
+      x = 10;
+      y += espacioY;
+    }
+    if (count % (columnas * filas) === 0 && i !== estudiantes.length - 1) {
+      pdf.addPage();
+      x = 10;
+      y = 10;
+    }
+  }
+
+  pdf.save('codigos_qr_estudiantes.pdf');
+}
+
 function main() {
   setupTabs();
   iniciarLectorQR();
@@ -197,6 +246,7 @@ function main() {
   document.getElementById('btnAgregarManual').addEventListener('click', agregarEstudianteManual);
   document.getElementById('btnFiltrar').addEventListener('click', () => cargarListaEstudiantes(document.getElementById('filtroCedula').value));
   document.getElementById('btnBuscarReporte').addEventListener('click', buscarReporteCedula);
+  document.getElementById('btnGenerarQR').addEventListener('click', generarQRMasivo);
 
   cargarListaEstudiantes();
   cargarReportes();
