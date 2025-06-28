@@ -1,15 +1,13 @@
 // app.js
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-const supabase = createClient(
-  'https://[SU_DOMINIO].supabase.co',
-  '[TU_API_KEY]'
-);
+const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxd3BpZXV4eXVkc3ZldHl0b2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwNTQ5MjksImV4cCI6MjA2NjYzMDkyOX0.FZOSbJTSiedP1yrwgXn_GLLeELxfzQ13fnIss7aDaJ4';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
+let qrScanner;
 let estudianteEditando = null;
 
-// Lector QR
-let qrScanner;
 function iniciarLectorQR() {
   if (qrScanner) return;
   qrScanner = new Html5Qrcode("reader");
@@ -26,7 +24,7 @@ function detenerLectorQR() {
 async function onScan(code) {
   const cedula = code.trim();
   const { data: estudiante } = await supabase.from('estudiantes').select('*').eq('cedula', cedula).single();
-  if (!estudiante) return alert('Estudiante no registrado.');
+  if (!estudiante) return alert('Estudiante no registrado');
 
   const hoy = new Date().toISOString().split('T')[0];
   const { data: yaAsistio } = await supabase.from('asistencias').select('*').eq('cedula', cedula).eq('fecha', hoy);
@@ -63,7 +61,10 @@ async function cargarEstudiantesDesdeCSV(file) {
   const text = await file.text();
   const rows = text.split('\n').map(r => r.split(','));
   const inserts = rows.slice(1).filter(r => r.length >= 4).map(([cedula, nombre_completo, area_academica, nivel]) => ({
-    cedula: cedula.trim(), nombre_completo: nombre_completo.trim(), area_academica: area_academica.trim(), nivel: nivel.trim()
+    cedula: cedula.trim(),
+    nombre_completo: nombre_completo.trim(),
+    area_academica: area_academica.trim(),
+    nivel: nivel.trim()
   }));
   await supabase.from('estudiantes').upsert(inserts);
   alert('Estudiantes cargados');
@@ -173,7 +174,10 @@ async function agregarEstudianteManual() {
   if (!cedula || !nombre || !area || !nivel) return alert('Todos los campos son obligatorios.');
 
   await supabase.from('estudiantes').upsert({
-    cedula, nombre_completo: nombre, area_academica: area, nivel
+    cedula,
+    nombre_completo: nombre,
+    area_academica: area,
+    nivel
   });
   alert('Estudiante agregado');
   document.getElementById('manualCedula').value = '';
