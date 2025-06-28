@@ -3,154 +3,138 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Control de Asistencia QR - Sin borrar todos</title>
+<title>Control de Asistencia QR - Administrador</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 <style>
   body { font-family: Arial, sans-serif; margin: 20px; }
   h2 { margin-bottom: 10px; }
-  .tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
-  .tab {
-    padding: 10px 20px;
-    cursor: pointer;
-    background: #eee;
-    border-radius: 5px 5px 0 0;
-    user-select: none;
-    flex: 1 1 150px;
-    text-align: center;
-  }
-  .tab.active {
-    background: #3498db;
-    color: white;
-    font-weight: bold;
-  }
-  .tab-content {
-    border: 1px solid #ccc;
-    border-top: none;
-    padding: 15px;
-    border-radius: 0 5px 5px 5px;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-  }
-  th, td {
-    border: 1px solid #ccc;
-    padding: 5px;
-    text-align: center;
-  }
-  button {
-    padding: 5px 10px;
-    margin-top: 5px;
-    cursor: pointer;
-  }
-  input[type="text"], input[type="file"], input[type="date"], input[type="number"] {
-    padding: 5px;
-    margin: 5px 0;
-    width: 100%;
-    max-width: 300px;
-  }
-  .hidden {
-    display: none;
-  }
-  #msg, #msgAsistencia {
-    margin-top: 10px;
-    font-weight: bold;
-  }
-  #reader {
-    width: 320px;
-    max-width: 100%;
-    margin-bottom: 10px;
-  }
+  .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab { padding: 10px 20px; cursor: pointer; background: #eee; border-radius: 5px 5px 0 0; user-select: none; flex: 1 1 150px; text-align: center; }
+  .tab.active { background: #3498db; color: white; font-weight: bold; }
+  .tab-content { border: 1px solid #ccc; border-top: none; padding: 15px; border-radius: 0 5px 5px 5px; }
+  .hidden { display: none; }
+
+  /* Admin module style */
+  .admin-module .module-header { font-size: 1.2em; margin-bottom: 10px; color: #2c3e50; }
+  .admin-module .tab-content { background: #f9f9f9; }
+
+  /* Modal styles */
+  .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+  .modal.hidden { display: none; }
+  .modal-content { background: white; padding: 20px; border-radius: 8px; max-width: 300px; text-align: center; }
+  .modal-content p { margin-bottom: 20px; font-size: 1.1em; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+  button { padding: 5px 10px; margin-top: 5px; cursor: pointer; }
+  input[type="text"], input[type="file"], input[type="date"], input[type="number"] { padding: 5px; margin: 5px 0; width: 100%; max-width: 300px; }
+  #reader { width: 320px; max-width: 100%; margin-bottom: 10px; }
 </style>
 </head>
 <body>
 
-  <h2>📘 Control de Asistencia QR - Sin botón borrar todos</h2>
+  <h2>📘 Control de Asistencia QR - Módulo Administrador</h2>
 
   <div class="tabs">
-    <div class="tab active" data-tab="cargar">Cargar Estudiantes</div>
-    <div class="tab" data-tab="asistencia">Registrar Asistencia (QR)</div>
+    <div class="tab active" data-tab="asistencia">Registrar Asistencia (QR)</div>
+    <div class="tab" data-tab="cargar">Cargar Estudiantes</div>
     <div class="tab" data-tab="registrados">Estudiantes Registrados</div>
     <div class="tab" data-tab="reportes">Reportes de Asistencia</div>
   </div>
 
-  <div id="cargar" class="tab-content">
-    <h3>📥 Cargar Estudiantes</h3>
-    <input type="file" id="csvInput" accept=".csv" />
-    <button id="btnCargarCSV">Cargar Estudiantes</button>
-    <div id="msg"></div>
+  <!-- Modal Popup para mensajes de asistencia -->
+  <div id="attendanceModal" class="modal hidden">
+    <div class="modal-content">
+      <p id="modalText"></p>
+      <button id="modalClose">OK</button>
+    </div>
   </div>
 
-  <div id="asistencia" class="tab-content hidden">
+  <div id="asistencia" class="tab-content">
     <h3>📷 Registrar Asistencia</h3>
     <div id="reader"></div>
-    <div id="msgAsistencia"></div>
   </div>
 
-  <div id="registrados" class="tab-content hidden">
-    <h3>👥 Estudiantes Registrados</h3>
-    <input type="text" id="filtroCedula" placeholder="Buscar por cédula" />
-    <button id="btnFiltrar">Buscar</button>
-    <button id="btnBorrarSeleccionados" style="background:#e74c3c; color:white; margin-left:10px;">Borrar Seleccionados</button>
-    <table>
-      <thead>
-        <tr>
-          <th><input type="checkbox" id="chkTodos" /></th>
-          <th>Cédula</th>
-          <th>Nombre</th>
-          <th>Área</th>
-          <th>Nivel</th>
-          <th>Editar</th>
-        </tr>
-      </thead>
-      <tbody id="tblEstudiantes"></tbody>
-    </table>
-    <div class="hidden" id="editForm" style="margin-top: 15px;">
-      <h3>✏️ Editar Estudiante</h3>
-      <input type="text" id="editCedula" disabled /><br />
-      <input type="text" id="editNombre" placeholder="Nombre completo" /><br />
-      <input type="text" id="editArea" placeholder="Área académica" /><br />
-      <input type="text" id="editNivel" placeholder="Nivel" /><br />
-      <button id="btnGuardarEdicion">Guardar</button>
-      <button id="btnCancelarEdicion">Cancelar</button>
-    </div>
-  </div>
-
-  <div id="reportes" class="tab-content hidden">
-    <h3>📊 Reportes de Asistencia</h3>
-
-    <div>
-      <label>Filtrar estudiantes con menos de </label>
-      <input type="number" id="filtroDias" min="0" placeholder="Cantidad de días" style="width:120px" />
-      <button id="btnFiltrarDias">Filtrar</button>
-      <button id="btnBorrarFiltrados" style="background:#e74c3c; color:white; margin-left:10px;">Borrar Filtrados</button>
+  <div class="admin-module">
+    <div id="cargar" class="tab-content hidden">
+      <div class="module-header">📥 Cargar Estudiantes</div>
+      <input type="file" id="csvInput" accept=".csv" />
+      <button id="btnCargarCSV">Cargar desde CSV</button>
+      <hr />
+      <div class="module-header">✍️ Registro Manual</div>
+      <input type="text" id="manCedula" placeholder="Cédula" />
+      <input type="text" id="manNombre" placeholder="Nombre Completo" />
+      <input type="text" id="manArea" placeholder="Área Académica" />
+      <input type="text" id="manNivel" placeholder="Nivel" />
+      <button id="btnRegistroManual">Registrar Estudiante</button>
     </div>
 
-    <div style="margin-top:15px;">
-      <button id="btnDescargarTodos">Descargar Reporte Completo Excel</button>
-      <button id="btnDescargarFiltrados" style="margin-left:10px;">Descargar Reporte Filtrado Excel</button>
+    <div id="registrados" class="tab-content hidden">
+      <div class="module-header">👥 Estudiantes Registrados</div>
+      <input type="text" id="filtroCedula" placeholder="Buscar por cédula" />
+      <button id="btnFiltrar">Buscar</button>
+      <button id="btnGenerarQRPdf" style="background:#27ae60; color:white; margin-left:10px;">Generar QR PDF</button>
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chkTodos" /></th>
+            <th>Cédula</th>
+            <th>Nombre</th>
+            <th>Área</th>
+            <th>Nivel</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tblEstudiantes"></tbody>
+      </table>
+      <div id="editForm" class="hidden" style="margin-top: 15px;">
+        <h3>✏️ Editar Estudiante</h3>
+        <input type="text" id="editCedula" disabled /><br />
+        <input type="text" id="editNombre" placeholder="Nombre completo" /><br />
+        <input type="text" id="editArea" placeholder="Área académica" /><br />
+        <input type="text" id="editNivel" placeholder="Nivel" /><br />
+        <button id="btnGuardarEdicion">Guardar</button>
+        <button id="btnEliminarEstudiante" style="background:#e74c3c; color:white;">Eliminar Estudiante</button>
+        <button id="btnCancelarEdicion">Cancelar</button>
+      </div>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Cédula</th>
-          <th>Nombre</th>
-          <th>Días Asistidos</th>
-          <th>Fechas</th>
-        </tr>
-      </thead>
-      <tbody id="tblReportes"></tbody>
-    </table>
+    <div id="reportes" class="tab-content hidden">
+      <div class="module-header">📊 Reportes de Asistencia</div>
+
+      <div>
+        <label>Filtrar por cédula: </label>
+        <input type="text" id="filtroCedulaReporte" placeholder="Cédula" style="width:150px" />
+        <button id="btnFiltrarCedulaReporte">Filtrar</button>
+      </div>
+      <div style="margin-top:15px;">
+        <label>Menos de </label>
+        <input type="number" id="filtroDias" min="0" placeholder="Días" style="width:80px" />
+        <label> días</label>
+        <button id="btnFiltrarDias">Filtrar</button>
+      </div>
+
+      <div style="margin-top:15px;">
+        <button id="btnDescargarTodos">Descargar Reporte Excel</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Cédula</th>
+            <th>Nombre</th>
+            <th>Días Asistidos</th>
+            <th>Fechas</th>
+          </tr>
+        </thead>
+        <tbody id="tblReportes"></tbody>
+      </table>
+    </div>
   </div>
 
   <script type="module" src="app.js"></script>
