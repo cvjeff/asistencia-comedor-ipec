@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Control de Asistencia con QR</title>
+  <title>Control de Asistencia QR</title>
 
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
     .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
     .tab { padding: 10px 15px; cursor: pointer; border: 1px solid #ccc; border-bottom: none; background: #eee; border-radius: 5px 5px 0 0; }
     .tab.active { background: white; font-weight: bold; border-bottom: 1px solid white; }
@@ -15,17 +15,15 @@
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     button { cursor: pointer; padding: 5px 10px; margin: 3px 0; }
-    input[type="text"], select, input[type="file"] { padding: 5px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+    input[type="text"], input[type="file"] { padding: 5px; margin: 5px 0; width: 100%; box-sizing: border-box; }
     label { font-weight: bold; display: block; margin-top: 10px; }
     #reader { width: 100%; max-width: 400px; margin: 0 auto; }
-    #editForm { margin-top: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9; }
   </style>
 
-  <!-- Librerías necesarias -->
+  <!-- Librerías -->
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
 </head>
 <body>
 
@@ -34,82 +32,68 @@
   <div class="tabs">
     <div class="tab active" data-tab="asistencia">Registrar Asistencia</div>
     <div class="tab" data-tab="estudiantes">Administrar Estudiantes</div>
-    <div class="tab" data-tab="reportes">Reportes de Asistencia</div>
+    <div class="tab" data-tab="reportes">Reportes</div>
   </div>
 
   <div id="asistencia" class="tab-content">
-    <h2>Escanee el código QR del estudiante</h2>
+    <h2>Escanee código QR</h2>
     <div id="reader"></div>
   </div>
 
   <div id="estudiantes" class="tab-content hidden">
     <h2>Cargar Estudiantes</h2>
-
-    <label for="csvInput">Cargar CSV de estudiantes (cedula,nombre_completo,area_academica,nivel):</label>
+    <label for="csvInput">Archivo CSV (cedula,nombre_completo,area_academica,nivel):</label>
     <input type="file" id="csvInput" accept=".csv" />
     <button id="btnCargarCSV">Cargar CSV</button>
 
-    <h3>Agregar Estudiante Manualmente</h3>
-    <label for="manualCedula">Cédula:</label>
-    <input type="text" id="manualCedula" />
-    <label for="manualNombre">Nombre completo:</label>
-    <input type="text" id="manualNombre" />
-    <label for="manualArea">Área académica:</label>
-    <input type="text" id="manualArea" />
-    <label for="manualNivel">Nivel:</label>
-    <input type="text" id="manualNivel" />
-    <button id="btnAgregarManual">Agregar estudiante</button>
+    <h3>Agregar Manual</h3>
+    <label>Cédula:</label><input type="text" id="manualCedula" />
+    <label>Nombre completo:</label><input type="text" id="manualNombre" />
+    <label>Área académica:</label><input type="text" id="manualArea" />
+    <label>Nivel:</label><input type="text" id="manualNivel" />
+    <button id="btnAgregarManual">Agregar</button>
 
-    <hr/>
-
-    <label for="filtroCedula">Filtrar estudiantes por cédula:</label>
+    <h3>Filtrar Estudiantes por cédula:</h3>
     <input type="text" id="filtroCedula" />
     <button id="btnFiltrar">Filtrar</button>
 
     <h3>Estudiantes Registrados</h3>
-    <button id="btnGenerarQR">📄 Generar QR para impresión (PDF)</button>
+    <button id="btnGenerarQR">Generar PDF con QR</button>
     <table>
       <thead>
         <tr>
-          <th>Cédula</th>
-          <th>Nombre completo</th>
-          <th>Área académica</th>
-          <th>Nivel</th>
-          <th>Editar</th>
+          <th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Editar</th>
         </tr>
       </thead>
       <tbody id="tblEstudiantes"></tbody>
     </table>
 
-    <form id="editForm" class="hidden">
-      <h3>Editar Estudiante</h3>
-      <label for="editCedula">Cédula (no editable):</label>
+    <div id="editForm" class="hidden">
+      <h3>Editar estudiante</h3>
+      <label>Cédula (no editable)</label>
       <input type="text" id="editCedula" readonly />
-      <label for="editNombre">Nombre completo:</label>
+      <label>Nombre</label>
       <input type="text" id="editNombre" />
-      <label for="editArea">Área académica:</label>
+      <label>Área</label>
       <input type="text" id="editArea" />
-      <label for="editNivel">Nivel:</label>
+      <label>Nivel</label>
       <input type="text" id="editNivel" />
-      <button type="button" onclick="guardarEdicion()">Guardar</button>
-      <button type="button" onclick="cancelarEdicion()">Cancelar</button>
-      <button type="button" onclick="eliminarEstudiante()">Eliminar estudiante</button>
-    </form>
+      <button id="btnGuardarEdicion">Guardar</button>
+      <button id="btnCancelarEdicion">Cancelar</button>
+      <button id="btnEliminarEstudiante">Eliminar</button>
+    </div>
   </div>
 
   <div id="reportes" class="tab-content hidden">
-    <h2>Reportes de Asistencia</h2>
-    <label for="reporteCedula">Buscar reporte por cédula:</label>
+    <h2>Reportes</h2>
+    <label>Buscar por cédula:</label>
     <input type="text" id="reporteCedula" />
     <button id="btnBuscarReporte">Buscar</button>
 
     <table>
       <thead>
         <tr>
-          <th>Cédula</th>
-          <th>Nombre completo</th>
-          <th>Días asistidos</th>
-          <th>Fechas</th>
+          <th>Cédula</th><th>Nombre</th><th>Días asistidos</th><th>Fechas</th>
         </tr>
       </thead>
       <tbody id="tblReportes"></tbody>
@@ -117,6 +101,5 @@
   </div>
 
   <script type="module" src="app.js"></script>
-
 </body>
 </html>
