@@ -1,137 +1,235 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Control de Asistencia QR - Administrador</title>
 
   <!-- Librerías externas -->
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js" defer></script>
 
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    h2 { margin-bottom: 10px; }
-    .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-    .tab { padding: 10px 20px; cursor: pointer; background: #eee; border-radius: 5px 5px 0 0; user-select: none; flex: 1 1 150px; text-align: center; }
-    .tab.active { background: #3498db; color: white; font-weight: bold; }
-    .tab-content { border: 1px solid #ccc; border-top: none; padding: 15px; border-radius: 0 5px 5px 5px; }
-    .hidden { display: none; }
-
-    /* Módulo Administrador */
-    .admin-module .module-header { font-size: 1.2em; margin-bottom: 10px; color: #2c3e50; }
-    .admin-module .tab-content { background: #f9f9f9; }
-
-    /* Modal popup */
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-    .modal.hidden { display: none; }
-    .modal-content { background: white; padding: 20px; border-radius: 8px; max-width: 300px; text-align: center; }
-    .modal-content p { margin-bottom: 20px; font-size: 1.1em; }
-
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
-    button { padding: 5px 10px; margin-top: 5px; cursor: pointer; }
-    input[type="text"], input[type="file"], input[type="date"], input[type="number"] { padding: 5px; margin: 5px 0; width: 100%; max-width: 300px; }
-    #reader { width: 320px; max-width: 100%; margin-bottom: 10px; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; cursor: pointer; background: #eee; border-radius: 5px 5px 0 0; flex: 1; text-align: center; }
+    .tab.active { background: #3498db; color: white; }
+    .tab-content { border: 1px solid #ccc; border-top: none; padding: 15px; border-radius: 0 5px 5px 5px; display: none; }
+    .tab-content.active { display: block; }
+    .modal { position: fixed; top: 0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; visibility:hidden; }
+    .modal.show { visibility:visible; }
+    .modal-content { background:white; padding:20px; border-radius:8px; text-align:center; }
+    table { width:100%; border-collapse: collapse; margin-top:10px; }
+    th, td { border:1px solid #ccc; padding:5px; text-align:center; }
+    button { padding:5px 10px; cursor:pointer; }
+    input { margin:5px 0; padding:5px; width:100%; max-width:300px; }
+    #reader { width:320px; max-width:100%; margin-bottom:10px; }
   </style>
 </head>
 <body>
 
-  <h2>📘 Control de Asistencia QR - Módulo Administrador</h2>
+  <h2>Control de Asistencia QR - Administrador</h2>
 
   <div class="tabs">
-    <div class="tab active" data-tab="asistencia">Registrar Asistencia (QR)</div>
+    <div class="tab" data-tab="asistencia">Registrar Asistencia</div>
     <div class="tab" data-tab="cargar">Cargar Estudiantes</div>
     <div class="tab" data-tab="registrados">Estudiantes Registrados</div>
-    <div class="tab" data-tab="reportes">Reportes de Asistencia</div>
+    <div class="tab" data-tab="reportes">Reportes</div>
   </div>
 
-  <!-- Modal para mensajes de asistencia -->
-  <div id="attendanceModal" class="modal hidden">
-    <div class="modal-content">
-      <p id="modalText"></p>
-      <button id="modalClose">OK</button>
-    </div>
-  </div>
-
-  <!-- Registrar Asistencia -->
   <div id="asistencia" class="tab-content">
-    <h3>📷 Registrar Asistencia</h3>
+    <h3>Registrar Asistencia (QR)</h3>
     <div id="reader"></div>
   </div>
 
-  <div class="admin-module">
-    <!-- Cargar Estudiantes -->
-    <div id="cargar" class="tab-content hidden">
-      <div class="module-header">📥 Cargar Estudiantes</div>
-      <input type="file" id="csvInput" accept=".csv" />
-      <button id="btnCargarCSV">Cargar desde CSV</button>
-      <hr />
-      <div class="module-header">✍️ Registro Manual</div>
-      <input type="text" id="manCedula" placeholder="Cédula" />
-      <input type="text" id="manNombre" placeholder="Nombre Completo" />
-      <input type="text" id="manArea" placeholder="Área Académica" />
-      <input type="text" id="manNivel" placeholder="Nivel" />
-      <button id="btnRegistroManual">Registrar Estudiante</button>
-    </div>
+  <div id="cargar" class="tab-content">
+    <h3>Cargar Estudiantes</h3>
+    <input type="file" id="csvInput" accept=".csv" />
+    <button id="btnCargarCSV">Cargar CSV</button>
+    <hr />
+    <h4>Registro Manual</h4>
+    <input type="text" id="manCedula" placeholder="Cédula" />
+    <input type="text" id="manNombre" placeholder="Nombre Completo" />
+    <input type="text" id="manArea" placeholder="Área Académica" />
+    <input type="text" id="manNivel" placeholder="Nivel" />
+    <button id="btnRegistroManual">Registrar Manual</button>
+  </div>
 
-    <!-- Estudiantes Registrados -->
-    <div id="registrados" class="tab-content hidden">
-      <div class="module-header">👥 Estudiantes Registrados</div>
-      <input type="text" id="filtroCedula" placeholder="Buscar por cédula" />
-      <button id="btnFiltrar">Buscar</button>
-      <button id="btnGenerarQRPdf" style="background:#27ae60; color:white; margin-left:10px;">Generar QR PDF</button>
-      <table>
-        <thead>
-          <tr>
-            <th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="tblEstudiantes"></tbody>
-      </table>
-      <div id="editForm" class="hidden" style="margin-top: 15px;">
-        <h3>✏️ Editar Estudiante</h3>
-        <input type="text" id="editCedula" disabled /><br />
-        <input type="text" id="editNombre" placeholder="Nombre completo" /><br />
-        <input type="text" id="editArea" placeholder="Área académica" /><br />
-        <input type="text" id="editNivel" placeholder="Nivel" /><br />
-        <button id="btnGuardarEdicion">Guardar</button>
-        <button id="btnEliminarEstudiante" style="background:#e74c3c; color:white;">Eliminar Estudiante</button>
-        <button id="btnCancelarEdicion">Cancelar</button>
-      </div>
-    </div>
-
-    <!-- Reportes de Asistencia -->
-    <div id="reportes" class="tab-content hidden">
-      <div class="module-header">📊 Reportes de Asistencia</div>
-      <div>
-        <label>Filtrar por cédula: </label>
-        <input type="text" id="filtroCedulaReporte" placeholder="Cédula" style="width:150px" />
-        <button id="btnFiltrarCedulaReporte">Filtrar</button>
-      </div>
-      <div style="margin-top:15px;">
-        <label>Menos de </label>
-        <input type="number" id="filtroDias" min="0" placeholder="Días" style="width:80px" />
-        <label> días</label>
-        <button id="btnFiltrarDias">Filtrar</button>
-      </div>
-      <div style="margin-top:15px;">
-        <button id="btnDescargarTodos">Descargar Reporte Excel</button>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Cédula</th><th>Nombre</th><th>Días Asistidos</th><th>Fechas</th>
-          </tr>
-        </thead>
-        <tbody id="tblReportes"></tbody>
-      </table>
+  <div id="registrados" class="tab-content">
+    <h3>Estudiantes Registrados</h3>
+    <input type="text" id="filtroCedula" placeholder="Filtrar por cédula" />
+    <button id="btnFiltrar">Filtrar</button>
+    <button id="btnGenerarQRPdf">Generar QR PDF</button>
+    <table>
+      <thead><tr><th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Acciones</th></tr></thead>
+      <tbody id="tblEstudiantes"></tbody>
+    </table>
+    <div id="editForm" style="display:none; margin-top:15px;">
+      <h4>Editar Estudiante</h4>
+      <input type="text" id="editCedula" disabled /><br />
+      <input type="text" id="editNombre" /><br />
+      <input type="text" id="editArea" /><br />
+      <input type="text" id="editNivel" /><br />
+      <button id="btnGuardarEdicion">Guardar</button>
+      <button id="btnEliminarEstudiante">Eliminar</button>
+      <button id="btnCancelarEdicion">Cancelar</button>
     </div>
   </div>
 
-  <!-- Script principal -->
-  <script type="module" src="app.js"></script>
+  <div id="reportes" class="tab-content">
+    <h3>Reportes de Asistencia</h3>
+    <input type="text" id="filtroCedulaReporte" placeholder="Filtrar cedula" style="width:200px;" />
+    <button id="btnFiltrarCed">Filtrar</button>
+    <br />
+    <input type="number" id="filtroDias" placeholder="Menos de días" style="width:120px;" />
+    <button id="btnFiltrarDias">Filtrar Días</button>
+    <button id="btnDescargarTodos">Descargar Excel</button>
+    <table>
+      <thead><tr><th>Cédula</th><th>Nombre</th><th>Días</th><th>Fechas</th></tr></thead>
+      <tbody id="tblReportes"></tbody>
+    </table>
+  </div>
+
+  <div id="attendanceModal" class="modal"><div class="modal-content"><p id="modalText"></p><button id="modalClose">OK</button></div></div>
+
+  <script type="module">
+    // Variables globales
+    const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
+    const supabaseKey = 'PUBLIC_ANON_KEY';
+    const supabase = supabase.createClient ? supabase.createClient(supabaseUrl, supabaseKey) : createClient(supabaseUrl, supabaseKey);
+    let estudiantesCache = [];
+    let reportes = [];
+    let html5Qr;
+    let editCedula = null;
+
+    // Modal
+    const modal = document.getElementById('attendanceModal');
+    const modalText = document.getElementById('modalText');
+    document.getElementById('modalClose').onclick = () => modal.classList.remove('show');
+    function showModal(msg) { modalText.innerText = msg; modal.classList.add('show'); }
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById(t.dataset.tab).classList.add('active');
+      if (t.dataset.tab === 'asistencia') startQR(); else stopQR();
+    }));
+    document.querySelector('.tab').click();
+
+    // Start/stop QR
+    async function startQR() {
+      html5Qr = new Html5Qrcode('reader');
+      try { await html5Qr.start({ facingMode: 'environment' }, { fps:10, qrbox:250 }, msg => registerAttendance(msg)); }
+      catch(e) { console.error(e); }
+    }
+    function stopQR() { if (html5Qr) html5Qr.stop(); }
+
+    // Register Attendance
+    async function registerAttendance(ced) {
+      const hoy = new Date().toISOString().slice(0,10);
+      const { data: existing } = await supabase.from('asistencias').select('*').eq('cedula',ced).eq('fecha',hoy);
+      if (existing.length) return showModal('Ya registrada hoy');
+      const { data } = await supabase.from('asistencias').insert({ cedula:ced, fecha:hoy, hora:new Date().toLocaleTimeString() });
+      showModal('Asistencia registrada: ' + ced);
+    }
+
+    // CSV Upload
+    document.getElementById('btnCargarCSV').onclick = async () => {
+      const f = document.getElementById('csvInput').files[0];
+      if (!f) return alert('Seleccione CSV');
+      const text = await f.text();
+      const result = Papa.parse(text, { header:true, skipEmptyLines:true });
+      for (let row of result.data) {
+        await supabase.from('estudiantes').upsert({ cedula:row.cedula, nombre_completo:row.nombre_completo, area_academica:row.area_academica, nivel:row.nivel });
+      }
+      loadStudents();
+    };
+
+    // Manual Register
+    document.getElementById('btnRegistroManual').onclick = async () => {
+      const ced = document.getElementById('manCedula').value;
+      const nom = document.getElementById('manNombre').value;
+      const area = document.getElementById('manArea').value;
+      const niv = document.getElementById('manNivel').value;
+      if (!ced||!nom||!area||!niv) return alert('Complete todo');
+      await supabase.from('estudiantes').insert({ cedula:ced, nombre_completo:nom, area_academica:area, nivel:niv });
+      loadStudents();
+    };
+
+    // Load Students
+    async function loadStudents(filter='') {
+      const { data } = await supabase.from('estudiantes').select('*').ilike('cedula','%'+filter+'%').order('nombre_completo');
+      estudiantesCache = data;
+      renderStudents();
+    }
+    function renderStudents() {
+      const tb = document.getElementById('tblEstudiantes'); tb.innerHTML='';
+      for (let e of estudiantesCache) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${e.cedula}</td><td>${e.nombre_completo}</td><td>${e.area_academica}</td><td>${e.nivel}</td><td><button class='editBtn'>Editar</button></td>`;
+        tr.querySelector('.editBtn').onclick = () => editStudent(e);
+        tb.appendChild(tr);
+      }
+    }
+    document.getElementById('btnFiltrar').onclick = () => loadStudents(document.getElementById('filtroCedula').value);
+
+    // Edit Student
+    function editStudent(e) {
+      document.getElementById('editCedula').value = e.cedula;
+      document.getElementById('editNombre').value = e.nombre_completo;
+      document.getElementById('editArea').value = e.area_academica;
+      document.getElementById('editNivel').value = e.nivel;
+      document.getElementById('editForm').style.display = 'block';
+      editCedula = e.cedula;
+    }
+    document.getElementById('btnGuardarEdicion').onclick = async () => {
+      await supabase.from('estudiantes').update({ nombre_completo:document.getElementById('editNombre').value, area_academica:document.getElementById('editArea').value, nivel:document.getElementById('editNivel').value }).eq('cedula',editCedula);
+      document.getElementById('editForm').style.display = 'none';
+      loadStudents();
+    };
+    document.getElementById('btnEliminarEstudiante').onclick = async () => {
+      if (!confirm('Eliminar?')) return;
+      await supabase.from('estudiantes').delete().eq('cedula',editCedula);
+      document.getElementById('editForm').style.display = 'none';
+      loadStudents();
+    };
+    document.getElementById('btnCancelarEdicion').onclick = () => document.getElementById('editForm').style.display='none';
+
+    // Reports
+    async function loadReports() {
+      const { data } = await supabase.from('asistencias').select('*');
+      let map = {};
+      data.forEach(r => { map[r.cedula] = map[r.cedula] || new Set(); map[r.cedula].add(r.fecha); });
+      reportes = estudiantesCache.map(e => ({ cedula:e.cedula, nombre:e.nombre_completo, dias: (map[e.cedula]||new Set()).size, fechas: Array.from(map[e.cedula]||[]).join(', ')}));
+      renderReports(reportes);
+    }
+    function renderReports(list) {
+      const tb = document.getElementById('tblReportes'); tb.innerHTML='';
+      for (let r of list) {
+        const tr = document.createElement('tr');
+        tr.innerHTML=`<td>${r.cedula}</td><td>${r.nombre}</td><td>${r.dias}</td><td>${r.fechas}</td>`;
+        tb.appendChild(tr);
+      }
+    }
+    document.getElementById('btnFiltrarDias').onclick = () => renderReports(reportes.filter(x=>x.dias < Number(document.getElementById('filtroDias').value)));
+    document.getElementById('btnFiltrarCed').onclick = () => renderReports(reportes.filter(x=>x.cedula.includes(document.getElementById('filtroCedulaReporte').value)));
+    document.getElementById('btnDescargarTodos').onclick = () => {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(reportes);
+      XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+      XLSX.writeFile(wb, 'Reporte.xlsx');
+    };
+
+    // Init
+    window.addEventListener('load', async () => {
+      await loadStudents();
+      await loadReports();
+      document.querySelector('.tab[data-tab="asistencia"]').click();
+    });
+  </script>
 </body>
 </html>
