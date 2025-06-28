@@ -30,7 +30,7 @@ async function onScan(code) {
 
   const hoy = new Date().toISOString().split('T')[0];
   const { data: yaAsistio } = await supabase.from('asistencias').select('*').eq('cedula', cedula).eq('fecha', hoy);
-  if (yaAsistio.length > 0) return alert(`Ya se registró asistencia para ${estudiante.nombre_completo}`);
+  if (yaAsistio.length > 0) return alert(`Ya se registró asistencia para hoy`);
 
   await supabase.from('asistencias').insert({
     cedula,
@@ -61,13 +61,11 @@ function setupTabs() {
 
 async function cargarEstudiantesDesdeCSV(file) {
   const text = await file.text();
-  const rows = text.split('\n').map(r => r.split(','));
-  const inserts = rows.slice(1).filter(r => r.length >= 4).map(([cedula, nombre_completo, area_academica, nivel]) => ({
-    cedula: cedula.trim(),
-    nombre_completo: nombre_completo.trim(),
-    area_academica: area_academica.trim(),
-    nivel: nivel.trim()
-  }));
+  const filas = text.trim().split('\n');
+  const inserts = filas.slice(1).map(fila => {
+    const [cedula, nombre, area, nivel] = fila.split(',');
+    return { cedula: cedula.trim(), nombre_completo: nombre.trim(), area_academica: area.trim(), nivel: nivel.trim() };
+  });
   await supabase.from('estudiantes').upsert(inserts);
   alert('Estudiantes cargados');
   cargarListaEstudiantes();
@@ -77,16 +75,26 @@ async function cargarListaEstudiantes(filtro = '') {
   const { data } = await supabase.from('estudiantes').select('*');
   const tbody = document.getElementById('tblEstudiantes');
   tbody.innerHTML = '';
-  data.filter(est => est.cedula.includes(filtro)).forEach(est => {
+  data.filter(e => e.cedula.includes(filtro)).forEach(est => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${est.cedula}</td><td>${est.nombre_completo}</td><td>${est.area_academica}</td><td>${est.nivel}</td>
-      <td><button onclick="editarEstudiante('${est.cedula}')">Editar</button></td>`;
+    tr.innerHTML = `
+      <td>${est.cedula}</td>
+      <td>${est.nombre_completo}</td>
+      <td>${est.area_academica}</td>
+      <td>${est.nivel}</td>
+      <td><button class="btnEditar" data-cedula="${est.cedula}">Editar</button></td>
+    `;
     tbody.appendChild(tr);
+  });
+
+  document.querySelectorAll('.btnEditar').forEach(btn => {
+    btn.onclick = () => editarEstudiante(btn.dataset.cedula);
   });
 }
 
 async function editarEstudiante(cedula) {
   const { data } = await supabase.from('estudiantes').select('*').eq('cedula', cedula).single();
+  if (!data) return alert('Estudiante no encontrado');
   estudianteEditando = data;
   document.getElementById('editCedula').value = data.cedula;
   document.getElementById('editNombre').value = data.nombre_completo;
@@ -97,13 +105,16 @@ async function editarEstudiante(cedula) {
 
 async function guardarEdicion() {
   if (!estudianteEditando) return;
-  const actual = {
-    cedula: estudianteEditando.cedula,
-    nombre_completo: document.getElementById('editNombre').value,
-    area_academica: document.getElementById('editArea').value,
-    nivel: document.getElementById('editNivel').value
-  };
-  await supabase.from('estudiantes').upsert(actual);
+  const cedula = estudianteEditando.cedula;
+  const nombre = document.getElementById('editNombre').value.trim();
+  const area = document.getElementById('editArea').value.trim();
+  const nivel = document.getElementById('editNivel').value.trim();
+  if (!nombre || !area || !nivel) return alert('Todos los campos son obligatorios');
+  await supabase.from('estudiantes').update({
+    nombre_completo: nombre,
+    area_academica: area,
+    nivel: nivel
+  }).eq('cedula', cedula);
   alert('Estudiante actualizado');
   cancelarEdicion();
   cargarListaEstudiantes();
@@ -116,7 +127,7 @@ function cancelarEdicion() {
 
 async function eliminarEstudiante() {
   if (!estudianteEditando) return;
-  if (!confirm('¿Eliminar estudiante y asistencias?')) return;
+  if (!confirm('¿Eliminar estudiante y sus asistencias?')) return;
   await supabase.from('asistencias').delete().eq('cedula', estudianteEditando.cedula);
   await supabase.from('estudiantes').delete().eq('cedula', estudianteEditando.cedula);
   alert('Estudiante eliminado');
@@ -128,59 +139,39 @@ async function eliminarEstudiante() {
 async function cargarReportes() {
   const { data: estudiantes } = await supabase.from('estudiantes').select('*');
   const { data: asistencias } = await supabase.from('asistencias').select('*');
-
-  const reportes = estudiantes.map(est => {
-    const registros = asistencias.filter(a => a.cedula === est.cedula);
-    return {
-      cedula: est.cedula,
-      nombre_completo: est.nombre_completo,
-      dias: registros.length,
-      fechas: registros.map(r => r.fecha).join(', ')
-    };
-  });
-
-  mostrarReportes(reportes);
-}
-
-function mostrarReportes(lista) {
   const tbody = document.getElementById('tblReportes');
   tbody.innerHTML = '';
-  lista.forEach(r => {
+  estudiantes.forEach(est => {
+    const reg = asistencias.filter(a => a.cedula === est.cedula);
+    const fechas = reg.map(r => r.fecha).join(', ');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.cedula}</td><td>${r.nombre_completo}</td><td>${r.dias}</td><td>${r.fechas}</td>`;
+    tr.innerHTML = `<td>${est.cedula}</td><td>${est.nombre_completo}</td><td>${reg.length}</td><td>${fechas}</td>`;
     tbody.appendChild(tr);
   });
 }
 
 async function buscarReporteCedula() {
-  const filtro = document.getElementById('reporteCedula').value.trim();
-  const { data: asistencias } = await supabase.from('asistencias').select('*').eq('cedula', filtro);
-  const { data: estudiante } = await supabase.from('estudiantes').select('*').eq('cedula', filtro).single();
+  const cedula = document.getElementById('reporteCedula').value.trim();
+  if (!cedula) return cargarReportes();
+  const { data: asistencias } = await supabase.from('asistencias').select('*').eq('cedula', cedula);
+  const { data: estudiante } = await supabase.from('estudiantes').select('*').eq('cedula', cedula).single();
   if (!estudiante) return alert('No encontrado');
-
-  const reporte = [{
-    cedula: estudiante.cedula,
-    nombre_completo: estudiante.nombre_completo,
-    dias: asistencias.length,
-    fechas: asistencias.map(r => r.fecha).join(', ')
-  }];
-  mostrarReportes(reporte);
+  const tbody = document.getElementById('tblReportes');
+  tbody.innerHTML = '';
+  const fechas = asistencias.map(a => a.fecha).join(', ');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${estudiante.cedula}</td><td>${estudiante.nombre_completo}</td><td>${asistencias.length}</td><td>${fechas}</td>`;
+  tbody.appendChild(tr);
 }
 
 async function agregarEstudianteManual() {
-  const cedula = document.getElementById('manualCedula').value;
-  const nombre = document.getElementById('manualNombre').value;
-  const area = document.getElementById('manualArea').value;
-  const nivel = document.getElementById('manualNivel').value;
+  const cedula = document.getElementById('manualCedula').value.trim();
+  const nombre = document.getElementById('manualNombre').value.trim();
+  const area = document.getElementById('manualArea').value.trim();
+  const nivel = document.getElementById('manualNivel').value.trim();
 
-  if (!cedula || !nombre || !area || !nivel) return alert('Todos los campos son obligatorios.');
-
-  await supabase.from('estudiantes').upsert({
-    cedula,
-    nombre_completo: nombre,
-    area_academica: area,
-    nivel
-  });
+  if (!cedula || !nombre || !area || !nivel) return alert('Complete todos los campos');
+  await supabase.from('estudiantes').upsert({ cedula, nombre_completo: nombre, area_academica: area, nivel });
   alert('Estudiante agregado');
   document.getElementById('manualCedula').value = '';
   document.getElementById('manualNombre').value = '';
@@ -191,62 +182,71 @@ async function agregarEstudianteManual() {
 
 async function generarQRMasivo() {
   const { data: estudiantes } = await supabase.from('estudiantes').select('*');
+  if (!estudiantes.length) return alert('No hay estudiantes para generar QR');
 
+  // Crear doc PDF
   const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4"
   });
 
-  const columnas = 6;
-  const filas = 6;
-  const espacioX = 30;
-  const espacioY = 45;
-  let x = 10;
-  let y = 10;
-  let count = 0;
+  const margin = 10;
+  const qrSize = 30;
+  const cols = 6;
+  const rows = 6;
+  let x = margin;
+  let y = margin;
 
   for (let i = 0; i < estudiantes.length; i++) {
     const est = estudiantes[i];
+    const textoQR = est.cedula;
 
-    // Generar QR en canvas
-    const qrCanvas = document.createElement('canvas');
-    await QRCode.toCanvas(qrCanvas, est.cedula, { width: 50 });
+    // Generar QR como canvas
+    const canvas = document.createElement('canvas');
+    await QRCode.toCanvas(canvas, textoQR, { width: qrSize * 4 });
 
-    const imgData = qrCanvas.toDataURL('image/png');
+    // Insertar QR imagen en PDF (convertir canvas a DataURL)
+    const imgData = canvas.toDataURL("image/png");
+    pdf.addImage(imgData, 'PNG', x, y, qrSize, qrSize);
 
-    pdf.addImage(imgData, 'PNG', x, y, 25, 25);
-    pdf.setFontSize(8);
-    pdf.text(`${est.nombre_completo}`, x, y + 32);
-    pdf.text(`Cédula: ${est.cedula}`, x, y + 38);
+    // Texto debajo del QR
+    const texto = `${est.nombre_completo}\n${est.cedula}`;
+    pdf.setFontSize(6);
+    pdf.text(texto, x, y + qrSize + 6);
 
-    x += espacioX;
-    count++;
-    if (count % columnas === 0) {
-      x = 10;
-      y += espacioY;
-    }
-    if (count % (columnas * filas) === 0 && i !== estudiantes.length - 1) {
-      pdf.addPage();
-      x = 10;
-      y = 10;
+    x += qrSize + 10;
+    if ((i + 1) % cols === 0) {
+      x = margin;
+      y += qrSize + 20;
+      if ((i + 1) % (cols * rows) === 0) {
+        pdf.addPage();
+        x = margin;
+        y = margin;
+      }
     }
   }
 
-  pdf.save('codigos_qr_estudiantes.pdf');
+  pdf.save('qr_estudiantes.pdf');
 }
 
 function main() {
   setupTabs();
   iniciarLectorQR();
-  document.getElementById('btnCargarCSV').addEventListener('click', () => {
-    const input = document.getElementById('csvInput');
-    if (input.files.length > 0) cargarEstudiantesDesdeCSV(input.files[0]);
-  });
-  document.getElementById('btnAgregarManual').addEventListener('click', agregarEstudianteManual);
-  document.getElementById('btnFiltrar').addEventListener('click', () => cargarListaEstudiantes(document.getElementById('filtroCedula').value));
-  document.getElementById('btnBuscarReporte').addEventListener('click', buscarReporteCedula);
-  document.getElementById('btnGenerarQR').addEventListener('click', generarQRMasivo);
+
+  document.getElementById('btnCargarCSV').onclick = () => {
+    const fileInput = document.getElementById('csvInput');
+    if (fileInput.files.length === 0) return alert('Seleccione un archivo CSV');
+    cargarEstudiantesDesdeCSV(fileInput.files[0]);
+  };
+
+  document.getElementById('btnAgregarManual').onclick = agregarEstudianteManual;
+  document.getElementById('btnFiltrar').onclick = () => cargarListaEstudiantes(document.getElementById('filtroCedula').value.trim());
+  document.getElementById('btnBuscarReporte').onclick = buscarReporteCedula;
+  document.getElementById('btnGuardarEdicion').onclick = guardarEdicion;
+  document.getElementById('btnCancelarEdicion').onclick = cancelarEdicion;
+  document.getElementById('btnEliminarEstudiante').onclick = eliminarEstudiante;
+  document.getElementById('btnGenerarQR').onclick = generarQRMasivo;
 
   cargarListaEstudiantes();
   cargarReportes();
