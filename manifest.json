@@ -1,0 +1,21 @@
+{
+  "name": "Control de Asistencia IPEC Barva",
+  "short_name": "IPEC Barva Comedor",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f7fafd",
+  "theme_color": "#4d7bc0",
+  "description": "App de control de asistencia para el comedor estudiantil del IPEC Barva",
+  "icons": [
+    {
+      "src": "Logo PNG.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "Logo PNG.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
