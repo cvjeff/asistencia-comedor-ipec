@@ -2,9 +2,12 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Control de Asistencia - IPEC Barva</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Manifest PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4d7bc0" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -209,6 +212,34 @@
       flex-shrink: 0;
       margin-top: 30px;
     }
+    /* PWA popup style */
+    #pwaPrompt {
+      display: none;
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 9999;
+      background: #fff;
+      border-top: 1px solid #e4e9f2;
+      box-shadow: 0 -2px 12px #1b243435;
+      padding: 19px 10vw 18px 10vw;
+      text-align: center;
+      animation: fadein-pwa .55s;
+    }
+    #pwaPrompt b { color: #193f83; }
+    #pwaPrompt button {
+      margin: 13px auto 0 auto;
+      background: #e7ebf8;
+      color: #2343a1;
+      border-radius: 7px;
+      border: none;
+      padding: 7px 18px;
+      font-size: 1.01em;
+      cursor: pointer;
+      box-shadow: 0 2px 10px #1a4b8911;
+      transition: background .19s;
+    }
+    #pwaPrompt button:active { background: #d3daf2; }
+    @keyframes fadein-pwa { from { opacity: 0; transform: translateY(60px);} to { opacity:1; transform:translateY(0);} }
     @media (max-width: 900px) {
       .main-container { padding: 2vw; }
       .admin-module, .asistencia-block { padding: 18px 2vw;}
@@ -328,7 +359,30 @@
   <footer>
     Todos los derechos reservados: Ing. Jeffry Carballo Vargas, Mag.
   </footer>
+  <!-- Popup instalar app -->
+  <div id="pwaPrompt">
+    <div style="font-size:1.04em; color:#214889;">
+      <b>¿Desea instalar esta app en su celular?</b><br>
+      <span style="font-size:0.98em; color:#4977be;">Toque <b>⋮</b> en su navegador y seleccione<br><b>“Agregar a pantalla de inicio”</b>.<br>Así podrá usarla como una app nativa.</span>
+    </div>
+    <button id="ocultarPwaPrompt">No volver a mostrar</button>
+  </div>
   <script>
+    // --- PWA INSTALL PROMPT ---
+    function mostrarPWAPrompt() {
+      if (window.matchMedia('(display-mode: standalone)').matches) return;
+      if (localStorage.getItem('ocultarPWAPrompt')) return;
+      document.getElementById('pwaPrompt').style.display = 'block';
+    }
+    document.getElementById('ocultarPwaPrompt').onclick = function() {
+      document.getElementById('pwaPrompt').style.display = 'none';
+      localStorage.setItem('ocultarPWAPrompt', '1');
+    };
+    setTimeout(mostrarPWAPrompt, 1300);
+
+    // --- Resto de tu JS exactamente como está en tu proyecto ---
+    // (puedes pegar aquí el JS completo del mensaje anterior, es el mismo que ya funciona)
+
     // Supabase config
     const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxd3BpZXV4eXVkc3ZldHl0b2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwNTQ5MjksImV4cCI6MjA2NjYzMDkyOX0.FZOSbJTSiedP1yrwgXn_GLLeELxfzQ13fnIss7aDaJ4';
