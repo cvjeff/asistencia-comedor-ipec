@@ -96,6 +96,7 @@
       font-weight: 600;
       letter-spacing: 0.5px;
       transition: background 0.18s;
+      cursor: pointer;
     }
     #adminBtn:hover { background: #285194; }
     .admin-module {
@@ -133,6 +134,7 @@
       border-radius: 13px 13px 0 0;
       transition: background .15s, color .15s;
       letter-spacing: .2px;
+      user-select: none;
     }
     .tab-admin.active {
       background: #fff;
@@ -175,9 +177,10 @@
       margin: 2px;
       font-weight: 500;
       transition: background 0.16s;
+      cursor: pointer;
     }
     button:hover { background: #d1e4fb;}
-    input[type="text"], input[type="file"], input[type="number"], input[type="password"], input[type="date"] {
+    input[type="text"], input[type="file"], input[type="number"], input[type="password"], input[type="date"], select {
       margin: 6px 0 0 0; padding:7px; width:100%; max-width:240px;
       border: 1px solid #bcd4e8; border-radius: 5px; background: #f9fbfd;
       font-size:1em;
@@ -185,7 +188,8 @@
       transition: border .12s;
     }
     input[type="file"] { padding: 4px 2px;}
-    input:focus { border: 1.5px solid #4674A9; outline: none; background: #f6f9fc;}
+    select { cursor: pointer; }
+    input:focus, select:focus { border: 1.5px solid #4674A9; outline: none; background: #f6f9fc;}
     .modal, #loginBox {
       position: fixed; top: 0; left: 0; width:100vw; height:100vh; background:rgba(40,52,75,0.10);
       display:flex; align-items:center; justify-content:center; z-index:10;
@@ -292,15 +296,25 @@
         <input type="text" id="manNombre" placeholder="Nombre Completo" />
         <input type="text" id="manArea" placeholder="Área Académica" />
         <input type="text" id="manNivel" placeholder="Nivel" />
+        <select id="manTurno" style="margin-top:6px; max-width:240px; border-radius:5px; border:1px solid #bcd4e8; background:#f9fbfd; padding:7px; font-family:'Inter', Arial, sans-serif;">
+          <option value="">Seleccione turno</option>
+          <option value="Día">Día</option>
+          <option value="Noche">Noche</option>
+        </select>
         <button id="btnRegistroManual">Registrar Manual</button>
       </div>
       <div id="registrados" class="tab-content-admin">
         <h4>Estudiantes Registrados</h4>
         <input type="text" id="filtroCedula" placeholder="Filtrar por cédula" />
+        <select id="filtroTurno" style="margin-top:6px; max-width:140px; border-radius:5px; border:1px solid #bcd4e8; background:#f9fbfd; padding:7px; font-family:'Inter', Arial, sans-serif;">
+          <option value="">Todos los turnos</option>
+          <option value="Día">Día</option>
+          <option value="Noche">Noche</option>
+        </select>
         <button id="btnFiltrar">Filtrar</button>
         <button id="btnGenerarQRPdf">Generar QR PDF</button>
         <table>
-          <thead><tr><th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Cédula</th><th>Nombre</th><th>Área</th><th>Nivel</th><th>Turno</th><th>Acciones</th></tr></thead>
           <tbody id="tblEstudiantes"></tbody>
         </table>
         <div id="editForm" style="display:none; margin-top:15px;">
@@ -309,6 +323,10 @@
           <input type="text" id="editNombre" /><br />
           <input type="text" id="editArea" /><br />
           <input type="text" id="editNivel" /><br />
+          <select id="editTurno" style="margin-top:6px; max-width:240px; border-radius:5px; border:1px solid #bcd4e8; background:#f9fbfd; padding:7px; font-family:'Inter', Arial, sans-serif;">
+            <option value="Día">Día</option>
+            <option value="Noche">Noche</option>
+          </select>
           <button id="btnGuardarEdicion">Guardar</button>
           <button id="btnEliminarEstudiante">Eliminar</button>
           <button id="btnCancelarEdicion">Cancelar</button>
@@ -317,6 +335,11 @@
       <div id="reportes" class="tab-content-admin">
         <h4>Reportes de Asistencia</h4>
         <input type="text" id="filtroCedulaReporte" placeholder="Filtrar cédula" style="width:180px;" />
+        <select id="filtroTurnoReporte" style="margin-left:6px; max-width:120px; border-radius:5px; border:1px solid #bcd4e8; background:#f9fbfd; padding:7px; font-family:'Inter', Arial, sans-serif;">
+          <option value="">Todos los turnos</option>
+          <option value="Día">Día</option>
+          <option value="Noche">Noche</option>
+        </select>
         <button id="btnFiltrarCed">Filtrar</button>
         <br>
         <input type="number" id="filtroDias" placeholder="Menos de días" style="width:120px;" />
@@ -325,6 +348,11 @@
         <hr>
         <label><b>Consultar por fecha:</b></label>
         <input type="date" id="reporteFecha" />
+        <select id="filtroTurnoFecha" style="margin-left:8px; max-width:120px; border-radius:5px; border:1px solid #bcd4e8; background:#f9fbfd; padding:7px; font-family:'Inter', Arial, sans-serif;">
+          <option value="todos">Todos</option>
+          <option value="día">Día</option>
+          <option value="noche">Noche</option>
+        </select>
         <button id="btnFiltrarPorFecha">Mostrar asistencia por día</button>
         <table>
           <thead>
@@ -333,6 +361,7 @@
               <th>Nombre</th>
               <th>Área</th>
               <th>Nivel</th>
+              <th>Turno</th>
             </tr>
           </thead>
           <tbody id="tblReportesFecha"></tbody>
@@ -380,10 +409,7 @@
     };
     setTimeout(mostrarPWAPrompt, 1300);
 
-    // --- Resto de tu JS exactamente como está en tu proyecto ---
-    // (puedes pegar aquí el JS completo del mensaje anterior, es el mismo que ya funciona)
-
-    // Supabase config
+    // --- Supabase config ---
     const supabaseUrl = 'https://pqwpieuxyudsvetytoac.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxd3BpZXV4eXVkc3ZldHl0b2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwNTQ5MjksImV4cCI6MjA2NjYzMDkyOX0.FZOSbJTSiedP1yrwgXn_GLLeELxfzQ13fnIss7aDaJ4';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
@@ -395,14 +421,12 @@
     const sndOk = document.getElementById("sndOk");
     const sndFail = document.getElementById("sndFail");
 
-    // Fecha local en formato YYYY-MM-DD (no UTC)
     function getFechaLocalISO() {
       const d = new Date();
       d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
       return d.toISOString().slice(0,10);
     }
 
-    // --------- DESBLOQUEAR SONIDOS EN EL PRIMER CLICK/TOQUE ----------
     function unlockSounds() {
       try { sndOk.play(); sndOk.pause(); sndOk.currentTime = 0; } catch {}
       try { sndFail.play(); sndFail.pause(); sndFail.currentTime = 0; } catch {}
@@ -422,7 +446,6 @@
     }
     function stopQR() { if (html5Qr) html5Qr.stop(); }
 
-    // MODAL (bloquea dobles escaneos)
     const modal = document.getElementById('attendanceModal');
     const modalText = document.getElementById('modalText');
     function showModal(msg, color, tipo) {
@@ -442,7 +465,7 @@
       setTimeout(startQR, 250);
     };
 
-    // QR ASISTENCIA
+    // Registro asistencia sólo si hay reserva
     async function registerAttendance(ced) {
       if (modalActivo || registroEnProceso) return;
       registroEnProceso = true;
@@ -463,6 +486,25 @@
         }
         const estudiante = estudiantes[0];
         const hoy = getFechaLocalISO();
+
+        // Verificar reserva
+        const { data: reservaTiquete } = await supabaseClient
+          .from('reservas_tiquete')
+          .select('*')
+          .eq('cedula', ced)
+          .eq('fecha', hoy)
+          .maybeSingle();
+
+        if (!reservaTiquete) {
+          showModal(
+            `<b>No ha reservado su tiquete de comida para hoy</b><br>
+            Por favor realice la reserva para poder registrar la asistencia.<br>
+            <span style="font-size:1.05em">Cédula: ${ced}</span>`,
+            "#e67e22", "fail"
+          );
+          registroEnProceso = false;
+          return;
+        }
 
         const { data: existing } = await supabaseClient
           .from('asistencias')
@@ -486,7 +528,8 @@
           fecha: hoy,
           hora: new Date().toLocaleTimeString(),
           area_academica: estudiante.area_academica,
-          nivel: estudiante.nivel
+          nivel: estudiante.nivel,
+          turno: estudiante.turno || ''
         });
 
         showModal(
@@ -559,7 +602,8 @@
             cedula:row.cedula,
             nombre_completo:row.nombre_completo,
             area_academica:row.area_academica,
-            nivel:row.nivel
+            nivel:row.nivel,
+            turno:row.turno || ''
           });
           if (error) fail++; else success++;
         }
@@ -574,19 +618,23 @@
     };
 
     document.getElementById('btnRegistroManual').onclick = async () => {
-      const ced = document.getElementById('manCedula').value;
-      const nom = document.getElementById('manNombre').value;
-      const area = document.getElementById('manArea').value;
-      const niv = document.getElementById('manNivel').value;
-      if (!ced||!nom||!area||!niv) return showModal('Complete todos los campos.', "#e74c3c","fail");
-      const { error } = await supabaseClient.from('estudiantes').insert({ cedula:ced, nombre_completo:nom, area_academica:area, nivel:niv });
+      const ced = document.getElementById('manCedula').value.trim();
+      const nom = document.getElementById('manNombre').value.trim();
+      const area = document.getElementById('manArea').value.trim();
+      const niv = document.getElementById('manNivel').value.trim();
+      const turno = document.getElementById('manTurno').value;
+      if (!ced || !nom || !area || !niv || !turno) return showModal('Complete todos los campos, incluido turno.', "#e74c3c","fail");
+      const { error } = await supabaseClient.from('estudiantes').insert({ cedula:ced, nombre_completo:nom, area_academica:area, nivel:niv, turno:turno });
       if(error) showModal('Error al registrar estudiante.', "#e74c3c","fail");
       else showModal('Estudiante registrado exitosamente.', "#18863d","ok");
       loadStudents();
     };
 
-    async function loadStudents(filter='') {
-      const { data } = await supabaseClient.from('estudiantes').select('*').ilike('cedula','%'+filter+'%').order('nombre_completo');
+    async function loadStudents(filter='', turnoFilter='') {
+      let query = supabaseClient.from('estudiantes').select('*').order('nombre_completo');
+      if(filter) query = query.ilike('cedula', `%${filter}%`);
+      if(turnoFilter) query = query.eq('turno', turnoFilter);
+      const { data } = await query;
       estudiantesCache = data||[];
       renderStudents();
     }
@@ -594,28 +642,38 @@
       const tb = document.getElementById('tblEstudiantes'); tb.innerHTML='';
       for (let e of estudiantesCache) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${e.cedula}</td><td>${e.nombre_completo}</td><td>${e.area_academica}</td><td>${e.nivel}</td><td><button class='editBtn'>Editar</button></td>`;
+        tr.innerHTML = `<td>${e.cedula}</td><td>${e.nombre_completo}</td><td>${e.area_academica}</td><td>${e.nivel}</td><td>${e.turno}</td><td><button class='editBtn'>Editar</button></td>`;
         tr.querySelector('.editBtn').onclick = () => editStudent(e);
         tb.appendChild(tr);
       }
     }
-    document.getElementById('btnFiltrar').onclick = () => loadStudents(document.getElementById('filtroCedula').value);
+    document.getElementById('btnFiltrar').onclick = () => {
+      const filtro = document.getElementById('filtroCedula').value.trim();
+      const turnoFiltro = document.getElementById('filtroTurno').value.trim();
+      loadStudents(filtro, turnoFiltro);
+    };
 
     function editStudent(e) {
       document.getElementById('editCedula').value = e.cedula;
       document.getElementById('editNombre').value = e.nombre_completo;
       document.getElementById('editArea').value = e.area_academica;
       document.getElementById('editNivel').value = e.nivel;
+      document.getElementById('editTurno').value = e.turno;
       document.getElementById('editForm').style.display = 'block';
       editCedula = e.cedula;
     }
     document.getElementById('btnGuardarEdicion').onclick = async () => {
-      await supabaseClient.from('estudiantes').update({ nombre_completo:document.getElementById('editNombre').value, area_academica:document.getElementById('editArea').value, nivel:document.getElementById('editNivel').value }).eq('cedula',editCedula);
+      const nombre = document.getElementById('editNombre').value.trim();
+      const area = document.getElementById('editArea').value.trim();
+      const nivel = document.getElementById('editNivel').value.trim();
+      const turno = document.getElementById('editTurno').value;
+      if (!nombre || !area || !nivel || !turno) return showModal('Complete todos los campos, incluido turno.', "#e74c3c","fail");
+      await supabaseClient.from('estudiantes').update({ nombre_completo:nombre, area_academica:area, nivel:nivel, turno:turno }).eq('cedula',editCedula);
       document.getElementById('editForm').style.display = 'none';
       loadStudents();
     };
     document.getElementById('btnEliminarEstudiante').onclick = async () => {
-      if (!confirm('Eliminar?')) return;
+      if (!confirm('¿Eliminar estudiante?')) return;
       await supabaseClient.from('estudiantes').delete().eq('cedula',editCedula);
       document.getElementById('editForm').style.display = 'none';
       loadStudents();
@@ -645,8 +703,23 @@
         tb.appendChild(tr);
       }
     }
-    document.getElementById('btnFiltrarDias').onclick = () => renderReports(reportes.filter(x=>x.dias < Number(document.getElementById('filtroDias').value)));
-    document.getElementById('btnFiltrarCed').onclick = () => renderReports(reportes.filter(x=>x.cedula.includes(document.getElementById('filtroCedulaReporte').value)));
+    document.getElementById('btnFiltrarDias').onclick = () => {
+      const diasVal = Number(document.getElementById('filtroDias').value);
+      if (isNaN(diasVal)) return showModal('Ingrese un número válido para días.', "#e74c3c");
+      renderReports(reportes.filter(x => x.dias < diasVal));
+    };
+    document.getElementById('btnFiltrarCed').onclick = () => {
+      const filtro = document.getElementById('filtroCedulaReporte').value.trim();
+      const turnoFiltro = document.getElementById('filtroTurnoReporte').value.trim();
+      let filtered = reportes.filter(x => x.cedula.includes(filtro));
+      if(turnoFiltro) {
+        filtered = filtered.filter(x => {
+          const est = estudiantesCache.find(e => e.cedula === x.cedula);
+          return est && est.turno.toLowerCase() === turnoFiltro.toLowerCase();
+        });
+      }
+      renderReports(filtered);
+    };
     document.getElementById('btnDescargarTodos').onclick = () => {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(reportes);
@@ -654,9 +727,10 @@
       XLSX.writeFile(wb, 'Reporte.xlsx');
     };
 
-    // REPORTE POR FECHA CON TOTAL
+    // REPORTE POR FECHA CON FILTRO DE TURNO Y TOTAL
     document.getElementById('btnFiltrarPorFecha').onclick = async () => {
       const fecha = document.getElementById('reporteFecha').value;
+      const turnoFiltro = document.getElementById('filtroTurnoFecha').value.toLowerCase();
       const tbody = document.getElementById('tblReportesFecha');
       const totalDiv = document.getElementById('totalAsistenciasPorFecha');
       tbody.innerHTML = '';
@@ -667,7 +741,7 @@
       // Busca todas las asistencias de esa fecha
       const { data: asistencias } = await supabaseClient.from('asistencias').select('*').eq('fecha', fecha);
       if (!asistencias || asistencias.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4">No hay asistencias ese día.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5">No hay asistencias ese día.</td></tr>';
         totalDiv.textContent = 'Total de estudiantes registrados: 0';
         return;
       }
@@ -679,12 +753,16 @@
       let total = 0;
       for (const a of asistencias) {
         const est = estudiantesMap[a.cedula] || {};
+        // Filtrar por turno
+        if (turnoFiltro && turnoFiltro !== 'todos' && (est.turno || '').toLowerCase() !== turnoFiltro) continue;
+
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${a.cedula}</td><td>${est.nombre_completo || ''}</td><td>${est.area_academica || ''}</td><td>${est.nivel || ''}</td>`;
+        tr.innerHTML = `<td>${a.cedula}</td><td>${est.nombre_completo || ''}</td><td>${est.area_academica || ''}</td><td>${est.nivel || ''}</td><td>${est.turno || ''}</td>`;
         tbody.appendChild(tr);
         total++;
       }
       totalDiv.textContent = `Total de estudiantes registrados: ${total}`;
+      if(total === 0) tbody.innerHTML = '<tr><td colspan="5">No hay asistencias con el filtro aplicado.</td></tr>';
     };
 
     // QR PDF
